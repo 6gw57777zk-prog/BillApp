@@ -57,6 +57,7 @@ he:{
   catManageBiz:"ניהול לקוחות", catManagePriv:"ניהול קטגוריות", catNewBiz:"לקוח חדש", catNewPriv:"קטגוריה חדשה",
   catEmptyBiz:"אין לקוחות עדיין. אפשר להוסיף את הראשון!", catEmptyPriv:"אין קטגוריות עדיין. אפשר ליצור את הראשונה!",
   catNamePhBiz:"לדוגמא: דנה כהן", catNamePhPriv:"לדוגמא: פילאטיס, ספא...", name:"שם", emoji:"אימוג'י", color:"צבע",
+  evClient:"פגישת לקוח", evPersonal:"אישי", createNamed:n=>`+ צור את "${n}" כלקוח חדש`, personalCat:"קטגוריה אישית", noPersonalCats:"אין קטגוריות אישיות", newPersonalCat:"+ קטגוריה אישית חדשה", clientNamePh:"שם הלקוח", personalCatPh:"לדוגמא: ספורט, משפחה...",
   deleteEventTitle:"מחיקת אירוע", deleteEventMsg:"האם למחוק את האירוע?", deleteIrreversible:"פעולה זו לא ניתנת לביטול.",
   searchPrefix:cw=>`חיפוש ${cw}...`, allOf:cwPl=>`כל ה${cwPl}`, notFound:"לא נמצא", clientWord:"לקוח", catWord:"קטגוריה", clientsWord:"לקוחות", catsWord:"קטגוריות",
   tutorial:"הדרכה", tutSkip:"דלג", tutNext:"הבא", tutBack:"הקודם", tutStart:"בואו נתחיל", tutDone:"סיום",
@@ -98,6 +99,7 @@ en:{
   catManageBiz:"Manage clients", catManagePriv:"Manage categories", catNewBiz:"New client", catNewPriv:"New category",
   catEmptyBiz:"No clients yet. Add your first!", catEmptyPriv:"No categories yet. Create your first!",
   catNamePhBiz:"e.g. Jane Smith", catNamePhPriv:"e.g. Pilates, Spa...", name:"Name", emoji:"Emoji", color:"Color",
+  evClient:"Client session", evPersonal:"Personal", createNamed:n=>`+ Create "${n}" as a new client`, personalCat:"Personal category", noPersonalCats:"No personal categories", newPersonalCat:"+ New personal category", clientNamePh:"Client name", personalCatPh:"e.g. Sport, Family...",
   deleteEventTitle:"Delete event", deleteEventMsg:"Delete this event?", deleteIrreversible:"This action cannot be undone.",
   searchPrefix:cw=>`Search ${cw}...`, allOf:cwPl=>`All ${cwPl}`, notFound:"Not found", clientWord:"client", catWord:"category", clientsWord:"clients", catsWord:"categories",
   tutorial:"Tutorial", tutSkip:"Skip", tutNext:"Next", tutBack:"Back", tutStart:"Let's start", tutDone:"Done",
@@ -133,7 +135,7 @@ function dbToEvent(r){ return {id:r.id,title:r.title,date:r.event_date,time:r.ev
 function eventToDb(e,uid){ return {user_id:uid,title:e.title,event_date:e.date,event_time:e.time,category_id:e.category||null,payment:e.payment,amount:e.amount===""||e.amount==null?0:Number(e.amount),currency:e.currency||"ILS",notes:e.notes||"",recur:e.recur||"none",recur_group_id:e.recurGroupId||null}; }
 function dbToPunch(r){ return {id:r.id,name:r.name,total:r.total,used:r.used||0,category:r.category_id||"",amount:r.amount==null?"":String(r.amount)}; }
 let _cats=[];
-const EMPTY_EV={title:"",date:today(),time:"09:00",category:"",payment:"none",amount:"",notes:"",recur:"none",currency:"ILS"};
+const EMPTY_EV={title:"",date:today(),time:"09:00",category:"",payment:"none",amount:"",notes:"",recur:"none",currency:"ILS",evMode:"client"};
 function App(){
 const [session,setSession]=useState(undefined);   // undefined=טוען, null=לא מחובר, object=מחובר
 const [loading,setLoading]=useState(true);
@@ -174,8 +176,8 @@ async function loadAll(uid){
     ]);
     if(prof.data){ setUserType(prof.data.user_type); setLang(prof.data.language||"he"); setDefCur(prof.data.default_currency||"ILS"); setTutSeen(!!prof.data.tutorial_seen); }
     else { setTutSeen(false); setPickedType(false); }
-    setCategories((cats.data||[]).map(c=>({id:c.id,label:c.label,emoji:c.emoji,color:c.color})));
-    _cats=(cats.data||[]).map(c=>({id:c.id,label:c.label,emoji:c.emoji,color:c.color}));
+    setCategories((cats.data||[]).map(c=>({id:c.id,label:c.label,emoji:c.emoji,color:c.color,kind:c.kind||"client"})));
+    _cats=(cats.data||[]).map(c=>({id:c.id,label:c.label,emoji:c.emoji,color:c.color,kind:c.kind||"client"}));
     setEvents((evs.data||[]).map(dbToEvent));
     setPunches((pcs.data||[]).map(dbToPunch));
   }catch(err){ console.error("load error",err); }
@@ -214,6 +216,7 @@ const [bMonth,setBMonth]=useState({y:new Date().getFullYear(),m:new Date().getMo
 const [modal,setModal]=useState(false);
 const [punchModal,setPunchModal]=useState(false);
 const [catModal,setCatModal]=useState(false);
+const [catModalKind,setCatModalKind]=useState(null);
 const [editing,setEditing]=useState(null);
 const [form,setForm]=useState(EMPTY_EV);
 const [pForm,setPForm]=useState({name:"",total:10,category:"",amount:""});
@@ -228,12 +231,18 @@ const [calPayFilter,setCalPayFilter]=useState("all");
 const [deleteConfirm,setDeleteConfirm]=useState(null);
 useEffect(()=>{ _cats=categories; },[categories]);
 const C=id=>categories.find(c=>c.id===id)||{id:"?",label:"?",color:"#555",emoji:"📌"};
-async function addCategory(){ if(!nCat.label.trim()||!uid) return; const payload={user_id:uid,label:nCat.label.trim(),emoji:nCat.emoji,color:nCat.color}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return; } setCategories(cs=>[...cs,{id:data.id,label:data.label,emoji:data.emoji,color:data.color}]); setNCat({label:"",emoji:"⭐",color:PALETTE[0]}); }
+async function addCategory(kind){ if(!nCat.label.trim()||!uid) return; const k=kind||(isBiz?"client":"personal"); const payload={user_id:uid,label:nCat.label.trim(),emoji:nCat.emoji,color:nCat.color,kind:k}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return; } setCategories(cs=>[...cs,{id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||k}]); setNCat({label:"",emoji:"⭐",color:PALETTE[0]}); }
+// יצירה מהירה של קטגוריה/לקוח מתוך טופס האירוע (מחזיר את הרשומה החדשה)
+async function quickCreateCategory(label,kind){ if(!label.trim()||!uid) return null; const color=PALETTE[Math.floor(Math.random()*PALETTE.length)]; const emoji=kind==="client"?"🧑":"⭐"; const payload={user_id:uid,label:label.trim(),emoji,color,kind}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return null; } const cat={id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||kind}; setCategories(cs=>[...cs,cat]); return cat; }
 async function deleteCategory(id){ const {error}=await sb.from("categories").delete().eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.filter(c=>c.id!==id)); }
+// קטגוריות מסוננות לפי סוג (ללקוח/אישי)
+const clientCats=categories.filter(c=>(c.kind||"client")==="client");
+const personalCats=categories.filter(c=>c.kind==="personal");
 function getSuggest(val){ if(!val||val.length<2) return null; const lo=val.toLowerCase(); const hits=events.filter(e=>e.title.toLowerCase().includes(lo)); return hits.length?hits.sort((a,b)=>b.date.localeCompare(a.date))[0]:null; }
-function openNew(date){ setEditing(null); setForm({...EMPTY_EV,date:date||today(),category:isBiz?"":(categories[0]?.id||""),currency:defCur}); setSuggest(null); setCustSearch(""); setModal(true); }
-function openEdit(ev){ setEditing(ev.id); setForm({...EMPTY_EV,...ev,currency:ev.currency||"ILS"}); setSuggest(null); setCustSearch(""); setModal(true); }
-function pickCustomer(c){ setForm(f=>({...f,category:c.id,title:c.label})); setCustSearch(""); }
+function openNew(date){ setEditing(null); setForm({...EMPTY_EV,date:date||today(),category:"",evMode:isBiz?"client":"personal",currency:defCur}); setSuggest(null); setCustSearch(""); setModal(true); }
+function openEdit(ev){ const m=ev.category&&personalCats.find(c=>c.id===ev.category)?"personal":(isBiz?"client":"personal"); setEditing(ev.id); setForm({...EMPTY_EV,...ev,evMode:m,currency:ev.currency||"ILS"}); setSuggest(null); setCustSearch(""); setModal(true); }
+async function pickCustomer(c){ setForm(f=>({...f,category:c.id,title:c.label})); setCustSearch(""); }
+async function createClientInline(name){ const cat=await quickCreateCategory(name,"client"); if(cat){ setForm(f=>({...f,category:cat.id,title:cat.label})); setCustSearch(""); } }
 async function saveEvent(){ if(!form.title.trim()||!uid) return;
   if(editing){
     const {error}=await sb.from("events").update(eventToDb(form,uid)).eq("id",editing);
@@ -354,7 +363,7 @@ return (
             <button key={m} onClick={()=>setCalMode(m)} style={{padding:"8px 16px",borderRadius:12,border:"1px solid #252535",background:calMode===m?"#1c1c28":"transparent",color:calMode===m?"#e8e4dc":"#666",cursor:"pointer",fontSize:13,fontWeight:calMode===m?600:400,transition:"all .15s ease"}}>{l}</button>
           ))}
         </div>
-        <button id="tut-add" onClick={()=>categories.length?openNew():setCatModal(true)} style={S.addBtn}>{t.add}</button>
+        <button id="tut-add" onClick={()=>openNew()} style={S.addBtn}>{t.add}</button>
       </div>
       {calMode==="week" && <>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -367,7 +376,7 @@ return (
             const dayEvs=events.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time));
             const isToday=date===todayStr, d=new Date(date);
             return (
-              <div key={date} onClick={()=>categories.length?openNew(date):setCatModal(true)} style={{background:isToday?"#181826":"#111118",border:`1px solid ${isToday?"#e05a5a44":"#1c1c28"}`,borderRadius:10,padding:"8px 4px",minHeight:108,cursor:"pointer"}}>
+              <div key={date} onClick={()=>openNew(date)} style={{background:isToday?"#181826":"#111118",border:`1px solid ${isToday?"#e05a5a44":"#1c1c28"}`,borderRadius:10,padding:"8px 4px",minHeight:108,cursor:"pointer"}}>
                 <div style={{textAlign:"center",marginBottom:5}}>
                   <div style={{fontSize:9,color:"#333"}}>{DAYS_HE[d.getDay()]}</div>
                   <div style={{fontSize:15,fontWeight:700,color:isToday?"#e05a5a":"#bbb"}}>{d.getDate()}</div>
@@ -409,7 +418,7 @@ return (
             const dayEvs=events.filter(e=>e.date===date),isToday=date===todayStr,d=new Date(date);
             const catIds=[...new Set(dayEvs.map(e=>e.category))];
             return (
-              <div key={date} onClick={()=>categories.length?openNew(date):setCatModal(true)} style={{background:isToday?"#181826":"#111118",border:`1px solid ${isToday?"#e05a5a44":"#1c1c28"}`,borderRadius:9,padding:"6px 4px",minHeight:64,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center"}}>
+              <div key={date} onClick={()=>openNew(date)} style={{background:isToday?"#181826":"#111118",border:`1px solid ${isToday?"#e05a5a44":"#1c1c28"}`,borderRadius:9,padding:"6px 4px",minHeight:64,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center"}}>
                 <div style={{fontSize:12,fontWeight:600,color:isToday?"#e05a5a":"#666",marginBottom:4}}>{d.getDate()}</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:2,justifyContent:"center"}}>
                   {catIds.slice(0,4).map(cid=>{ const c=C(cid),cnt=dayEvs.filter(e=>e.category===cid).length; return (<div key={cid} style={{position:"relative"}}><div style={{width:9,height:9,borderRadius:"50%",background:c.color}}/>{cnt>1&&<div style={{position:"absolute",top:-3,right:-3,width:11,height:11,borderRadius:"50%",background:c.color,fontSize:7,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{cnt}</div>}</div>); })}
@@ -438,7 +447,7 @@ return (
           <option value="paid">{t.paid}</option>
           <option value="pending">{t.pending}</option>
         </select>
-        <button onClick={()=>categories.length?openNew():setCatModal(true)} style={{...S.addBtn,marginInlineStart:"auto"}}>{t.add}</button>
+        <button onClick={()=>openNew()} style={{...S.addBtn,marginInlineStart:"auto"}}>{t.add}</button>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:7}}>
         {filtered.sort((a,b)=>b.date.localeCompare(a.date)).map(ev=><EvRow key={ev.id} ev={ev} cat={C} onEdit={openEdit} onPay={togglePay} onDelete={id=>setDeleteConfirm(id)} showAmt days={DAYS_HE} months={MONTHS_HE} payLabel={PAYLABEL}/>)}
@@ -447,7 +456,7 @@ return (
     </>}
     {view==="punches" && <>
       <div style={{display:"flex",gap:8,marginBottom:16}}>
-        <button onClick={()=>categories.length?openNewPunch():setCatModal(true)} style={S.addBtn}>{t.newPunchBtn}</button>
+        <button onClick={()=>openNewPunch()} style={S.addBtn}>{t.newPunchBtn}</button>
         <button onClick={()=>setCatModal(true)} style={{...S.addBtn,background:"#1c1c28",color:"#888"}}>✏️ {L.catWordPl}</button>
       </div>
       <div style={{background:"#5ab8e011",border:"1px solid #5ab8e022",borderRadius:10,padding:"9px 12px",marginBottom:16,fontSize:10,color:"#5ab8e0",lineHeight:1.6}}>
@@ -510,39 +519,57 @@ return (
           <span style={{fontSize:14,fontWeight:700,color:"#f0ece4"}}>{editing?t.editEvent:t.newEvent}</span>
           <button onClick={()=>setModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:17}}>✕</button>
         </div>
-        {isBiz?(
+        {isBiz&&!editing&&(
+          <div style={{display:"flex",gap:6,marginBottom:14}}>
+            {[["client",t.evClient],["personal",t.evPersonal]].map(([m,lbl])=>(
+              <button key={m} onClick={()=>setForm(f=>({...f,evMode:m,category:"",title:""}))} style={{flex:1,padding:"10px",borderRadius:11,border:`1px solid ${form.evMode===m?"#8b5ae0":"#252535"}`,background:form.evMode===m?"#8b5ae022":"transparent",color:form.evMode===m?"#8b5ae0":"#888",cursor:"pointer",fontSize:13,fontWeight:form.evMode===m?700:400,transition:"all .15s ease"}}>{lbl}</button>
+            ))}
+          </div>
+        )}
+        {isBiz&&form.evMode==="client"?(
           <>
             <label style={S.lbl}>{t.client}</label>
-            {categories.length===0?(
-              <div style={{fontSize:11,color:"#555",marginBottom:12}}>{t.noClients} — <span onClick={()=>{setModal(false);setCatModal(true);}} style={{color:"#8b5ae0",cursor:"pointer",textDecoration:"underline"}}>{t.clickToCreate}</span></div>
-            ):(
-              <div style={{position:"relative",marginBottom:12}}>
-                {form.category?(
-                  <div style={{display:"flex",alignItems:"center",gap:8,background:C(form.category).color+"22",border:`1px solid ${C(form.category).color}`,borderRadius:10,padding:"9px 12px"}}>
-                    <span style={{fontSize:16}}>{C(form.category).emoji}</span>
-                    <span style={{flex:1,fontSize:13,fontWeight:600,color:C(form.category).color}}>{C(form.category).label}</span>
-                    <button onClick={()=>{setForm(f=>({...f,category:"",title:""}));setCustSearch("");}} style={{background:"none",border:"none",color:C(form.category).color,cursor:"pointer",fontSize:13}}>✕</button>
+            <div style={{position:"relative",marginBottom:12}}>
+              {form.category&&clientCats.find(c=>c.id===form.category)?(
+                <div style={{display:"flex",alignItems:"center",gap:8,background:C(form.category).color+"22",border:`1px solid ${C(form.category).color}`,borderRadius:10,padding:"9px 12px"}}>
+                  <span style={{fontSize:16}}>{C(form.category).emoji}</span>
+                  <span style={{flex:1,fontSize:13,fontWeight:600,color:C(form.category).color}}>{C(form.category).label}</span>
+                  <button onClick={()=>{setForm(f=>({...f,category:"",title:""}));setCustSearch("");}} style={{background:"none",border:"none",color:C(form.category).color,cursor:"pointer",fontSize:13}}>✕</button>
+                </div>
+              ):(
+                <>
+                  <input value={custSearch} onChange={e=>setCustSearch(e.target.value)} placeholder={t.clientSearchPh} style={{...S.inp,marginBottom:8}}/>
+                  <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:180,overflowY:"auto"}}>
+                    {clientCats.filter(c=>c.label.toLowerCase().includes(custSearch.toLowerCase())).map(c=>{ const ap=activePunch(c.id); return (
+                      <div key={c.id} onClick={()=>pickCustomer(c)} style={{display:"flex",alignItems:"center",gap:9,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px",cursor:"pointer"}}>
+                        <div style={{width:30,height:30,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{c.emoji}</div>
+                        <span style={{flex:1,fontSize:13,color:"#ddd"}}>{c.label}</span>
+                        {ap&&<span style={{fontSize:9,color:c.color}}>🎟 {ap.total-(ap.used||0)}</span>}
+                      </div>
+                    ); })}
                   </div>
-                ):(
-                  <>
-                    <input value={custSearch} onChange={e=>setCustSearch(e.target.value)} placeholder={t.clientSearchPh} style={{...S.inp,marginBottom:8}}/>
-                    <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:180,overflowY:"auto"}}>
-                      {categories.filter(c=>c.label.toLowerCase().includes(custSearch.toLowerCase())).map(c=>{ const ap=activePunch(c.id); return (
-                        <div key={c.id} onClick={()=>pickCustomer(c)} style={{display:"flex",alignItems:"center",gap:9,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px",cursor:"pointer"}}>
-                          <div style={{width:30,height:30,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{c.emoji}</div>
-                          <span style={{flex:1,fontSize:13,color:"#ddd"}}>{c.label}</span>
-                          {ap&&<span style={{fontSize:9,color:c.color}}>🎟 {ap.total-(ap.used||0)}</span>}
-                        </div>
-                      ); })}
-                      {categories.filter(c=>c.label.toLowerCase().includes(custSearch.toLowerCase())).length===0&&(
-                        <div style={{fontSize:11,color:"#444",padding:"6px 0"}}>{t.noClientFound}</div>
-                      )}
-                    </div>
-                  </>
-                )}
-                <button onClick={()=>{setModal(false);setCatModal(true);}} style={{marginTop:8,padding:"8px 14px",borderRadius:13,border:"1px dashed #3a3a4a",background:"transparent",color:"#666",cursor:"pointer",fontSize:13}}>{t.newClient}</button>
-              </div>
-            )}
+                  {/* כשמקלידים שם שלא קיים — כפתור ליצירה מיידית */}
+                  {custSearch.trim()&&!clientCats.some(c=>c.label.toLowerCase()===custSearch.trim().toLowerCase())&&(
+                    <button onClick={()=>createClientInline(custSearch)} style={{marginTop:8,width:"100%",padding:"11px",borderRadius:11,border:"1px solid #8b5ae0",background:"#8b5ae022",color:"#8b5ae0",cursor:"pointer",fontSize:13,fontWeight:600}}>{t.createNamed(custSearch.trim())}</button>
+                  )}
+                  {!custSearch.trim()&&clientCats.length===0&&(
+                    <div style={{fontSize:11,color:"#555",marginTop:8}}>{t.noClients} — {lang==="he"?"הקלידי שם כדי ליצור":"type a name to create"}</div>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        ):(isBiz&&form.evMode==="personal")?(
+          <>
+            <label style={S.lbl}>{t.title}</label>
+            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder={t.titlePh} style={S.inp}/>
+            <label style={S.lbl}>{t.personalCat}</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:11}}>
+              {personalCats.map(c=>(
+                <button key={c.id} onClick={()=>setForm(f=>({...f,category:c.id}))} style={{padding:"7px 13px",borderRadius:13,border:`1px solid ${form.category===c.id?c.color:"#252535"}`,background:form.category===c.id?c.color+"33":"transparent",color:form.category===c.id?c.color:"#888",cursor:"pointer",fontSize:13,transition:"all .15s ease"}}>{c.emoji} {c.label}</button>
+              ))}
+              <button onClick={()=>{setNCat({label:"",emoji:"⭐",color:PALETTE[0]});setCatModalKind("personal");setModal(false);setCatModal(true);}} style={{padding:"7px 13px",borderRadius:13,border:"1px dashed #3a3a4a",background:"transparent",color:"#666",cursor:"pointer",fontSize:13}}>{t.newPersonalCat}</button>
+            </div>
           </>
         ):(
           <>
@@ -636,13 +663,13 @@ return (
               <div style={{marginBottom:12}}>
                 <input value={pSearch} onChange={e=>setPSearch(e.target.value)} placeholder={t.clientSearchPh} style={{...S.inp,marginBottom:8}}/>
                 <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:170,overflowY:"auto"}}>
-                  {categories.filter(c=>c.label.toLowerCase().includes(pSearch.toLowerCase())).map(c=>(
+                  {clientCats.filter(c=>c.label.toLowerCase().includes(pSearch.toLowerCase())).map(c=>(
                     <div key={c.id} onClick={()=>pickPunchCustomer(c)} style={{display:"flex",alignItems:"center",gap:9,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px",cursor:"pointer"}}>
                       <div style={{width:30,height:30,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{c.emoji}</div>
                       <span style={{flex:1,fontSize:13,color:"#ddd"}}>{c.label}</span>
                     </div>
                   ))}
-                  {categories.filter(c=>c.label.toLowerCase().includes(pSearch.toLowerCase())).length===0&&(
+                  {clientCats.filter(c=>c.label.toLowerCase().includes(pSearch.toLowerCase())).length===0&&(
                     <div style={{fontSize:11,color:"#444",padding:"6px 0"}}>{t.noClientFound}</div>
                   )}
                 </div>
@@ -684,11 +711,13 @@ return (
           <span style={{fontSize:14,fontWeight:700,color:"#f0ece4"}}>{L.catManage}</span>
           <button onClick={()=>setCatModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:17}}>✕</button>
         </div>
-        {categories.length===0?(
-          <div style={{textAlign:"center",color:"#3a3a4a",padding:"16px 0 20px",fontSize:11}}>{L.catEmpty}</div>
+        {(()=>{ const catModalList = catModalKind==="personal"?personalCats:(isBiz?clientCats:categories); const ph = catModalKind==="personal"?t.personalCatPh:L.catNamePh; const emptyMsg = catModalKind==="personal"?t.noPersonalCats:L.catEmpty; return (
+        <>
+        {catModalList.length===0?(
+          <div style={{textAlign:"center",color:"#3a3a4a",padding:"16px 0 20px",fontSize:11}}>{emptyMsg}</div>
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:18}}>
-            {categories.map(c=>(
+            {catModalList.map(c=>(
               <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px"}}>
                 <div style={{width:32,height:32,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{c.emoji}</div>
                 <span style={{flex:1,fontSize:13,color:"#ccc"}}>{c.label}</span>
@@ -698,10 +727,10 @@ return (
             ))}
           </div>
         )}
-        <div style={{borderTop:categories.length?"1px solid #1c1c28":"none",paddingTop:categories.length?16:0}}>
-          <div style={{fontSize:11,fontWeight:600,color:"#666",marginBottom:12}}>{L.catNew}</div>
+        <div style={{borderTop:catModalList.length?"1px solid #1c1c28":"none",paddingTop:catModalList.length?16:0}}>
+          <div style={{fontSize:11,fontWeight:600,color:"#666",marginBottom:12}}>{catModalKind==="personal"?t.newPersonalCat.replace("+ ",""):L.catNew}</div>
           <label style={S.lbl}>{t.name}</label>
-          <input value={nCat.label} onChange={e=>setNCat(f=>({...f,label:e.target.value}))} placeholder={L.catNamePh} style={S.inp}/>
+          <input value={nCat.label} onChange={e=>setNCat(f=>({...f,label:e.target.value}))} placeholder={ph} style={S.inp}/>
           <label style={S.lbl}>{t.emoji}</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>
             {EMOJIS.map(em=>(
@@ -721,9 +750,11 @@ return (
           )}
           <div style={{display:"flex",gap:6}}>
             <button onClick={()=>setCatModal(false)} style={{flex:1,padding:"9px",borderRadius:10,border:"1px solid #252535",background:"transparent",color:"#444",cursor:"pointer"}}>{t.close}</button>
-            <button onClick={addCategory} disabled={!nCat.label.trim()} style={{flex:2,padding:"9px",borderRadius:10,border:"none",background:nCat.label.trim()?"linear-gradient(135deg,#e05a5a,#8b5ae0)":"#252535",color:nCat.label.trim()?"#fff":"#444",cursor:"pointer",fontSize:13,fontWeight:600}}>{t.add}</button>
+            <button onClick={()=>{addCategory(catModalKind);setCatModalKind(null);}} disabled={!nCat.label.trim()} style={{flex:2,padding:"9px",borderRadius:10,border:"none",background:nCat.label.trim()?"linear-gradient(135deg,#e05a5a,#8b5ae0)":"#252535",color:nCat.label.trim()?"#fff":"#444",cursor:"pointer",fontSize:13,fontWeight:600}}>{t.add}</button>
           </div>
         </div>
+        </>
+        ); })()}
       </div>
     </div>
   )}
