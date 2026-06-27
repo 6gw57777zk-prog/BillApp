@@ -41,7 +41,7 @@ he:{
   appName:"לוח שנה ותשלומים", welcome:"ברוכים הבאים!", welcomeSub:"איזה סוג חשבון מתאים לך? אפשר לשנות את זה בכל רגע בהגדרות.",
   private:"משתמש פרטי", privateSub:"ניהול אישי של אירועים ותשלומים", business:"בעל עסק", businessSub:"ניהול לקוחות, פגישות ותשלומים",
   week:"שבועי", month:"חודשי", add:"+ הוסף", settings:"הגדרות", accountType:"סוג חשבון", settingsNote:"שינוי הסוג לא מוחק נתונים קיימים.", close:"סגור",
-  language:"שפה", defaultCurrency:"מטבע ברירת מחדל", currency:"מטבע",
+  language:"שפה", defaultCurrency:"מטבע ברירת מחדל", currency:"מטבע", fontSize:"גודל טקסט", fontNormal:"רגיל", fontLarge:"גדול",
   weekEvents:"אירועי השבוע", monthEvents:"כל אירועי החודש", all:"הכל", paid:"שולם", pending:"ממתין", future:"עתידי", none:"ללא תשלום",
   clickDayToAdd:"יש ללחוץ על יום להוספת אירוע", createFirst:cw=>`קודם יש ליצור ${cw} — לחיצה על + הוסף`,
   allStatuses:"כל הסטטוסים", noPayments:"אין תשלומים", totalExpected:"סה״כ צפוי", total:"סה״כ",
@@ -83,7 +83,7 @@ en:{
   appName:"Calendar & Payments", welcome:"Welcome!", welcomeSub:"Which account type fits you? You can change this anytime in settings.",
   private:"Personal user", privateSub:"Manage your own events and payments", business:"Business owner", businessSub:"Manage clients, sessions and payments",
   week:"Week", month:"Month", add:"+ Add", settings:"Settings", accountType:"Account type", settingsNote:"Changing the type won't delete existing data.", close:"Close",
-  language:"Language", defaultCurrency:"Default currency", currency:"Currency",
+  language:"Language", defaultCurrency:"Default currency", currency:"Currency", fontSize:"Text size", fontNormal:"Normal", fontLarge:"Large",
   weekEvents:"This week's events", monthEvents:"All events this month", all:"All", paid:"Paid", pending:"Pending", future:"Upcoming", none:"No payment",
   clickDayToAdd:"Tap a day to add an event", createFirst:cw=>`First create a ${cw} — tap + Add`,
   allStatuses:"All statuses", noPayments:"No payments", totalExpected:"Total expected", total:"Total",
@@ -143,6 +143,8 @@ const [loading,setLoading]=useState(true);
 const [userType,setUserType]=useState(null);
 const [lang,setLang]=useState("he");
 const [defCur,setDefCur]=useState("ILS");
+const [fontScale,setFontScale]=useState(()=>{ try{ return localStorage.getItem("fontscale")||"normal"; }catch{ return "normal"; } });
+useEffect(()=>{ try{ localStorage.setItem("fontscale",fontScale); }catch{} },[fontScale]);
 const [tutSeen,setTutSeen]=useState(true);
 const [pickedType,setPickedType]=useState(false);
 const [tutStep,setTutStep]=useState(null);
@@ -347,7 +349,7 @@ if(showOnboarding){
   );
 }
 return (
-<div style={{minHeight:"100vh",background:"#0d0d12",color:"#e8e4dc"}}>
+<div style={{minHeight:"100vh",background:"#0d0d12",color:"#e8e4dc",zoom:fontScale==="large"?1.18:1}}>
 <header style={{background:"#111118",borderBottom:"1px solid #1c1c28",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
 <div style={{display:"flex",alignItems:"center",gap:9}}>
 <div style={{width:32,height:32,borderRadius:9,background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>✦</div>
@@ -790,6 +792,12 @@ return (
         <div style={{display:"flex",gap:8,marginBottom:20}}>
           {CURRENCIES.map(cu=>(
             <button key={cu.id} onClick={()=>changeCur(cu.id)} style={{flex:1,padding:"11px",borderRadius:12,border:`1px solid ${defCur===cu.id?"#5ae09a":"#252535"}`,background:defCur===cu.id?"#5ae09a18":"#111118",color:defCur===cu.id?"#5ae09a":"#888",cursor:"pointer",fontSize:15,fontWeight:600}}>{cu.symbol} {cu.label[lang]}</button>
+          ))}
+        </div>
+        <div style={{fontSize:13,fontWeight:600,color:"#666",marginBottom:10}}>{t.fontSize}</div>
+        <div style={{display:"flex",gap:8,marginBottom:20}}>
+          {[["normal",t.fontNormal,15],["large",t.fontLarge,18]].map(([fs,lbl,sz])=>(
+            <button key={fs} onClick={()=>setFontScale(fs)} style={{flex:1,padding:"13px",borderRadius:12,border:`1px solid ${fontScale===fs?"#e0a85a":"#252535"}`,background:fontScale===fs?"#e0a85a18":"#111118",color:fontScale===fs?"#e0a85a":"#888",cursor:"pointer",fontSize:sz,fontWeight:600}}>{lbl}</button>
           ))}
         </div>
         <button onClick={openTutorial} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid #252535",background:"#111118",color:"#aaa",cursor:"pointer",fontSize:15,fontWeight:600,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📖 {t.tutorial}</button>
