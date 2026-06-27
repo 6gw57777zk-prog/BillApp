@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="לוח שנה"/>
+<title>לוח שנה ותשלומים</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: #0d0d12; color: #e8e4dc; font-family: 'Noto Sans Hebrew', 'Segoe UI', sans-serif; min-height: 100vh; }
+  input, textarea, select, button { font-family: inherit; }
+  input[type=date], input[type=time] { color-scheme: dark; }
+  input, textarea, select { font-size: 16px !important; }
+  button { -webkit-user-select: none; user-select: none; }
+  ::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script type="text/babel">
+const SUPABASE_URL="https://jtfpvfovxfhblmydmqrt.supabase.co";
+const SUPABASE_KEY="sb_publishable_UclFPsaCjRgURyMhOL4dAw_yI8xaLRY";
+const sb=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
+const { useState, useEffect, useRef, useLayoutEffect } = React;
+const DAYS={he:["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"],en:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]};
+const MONTHS={he:["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"],en:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]};
+const PALETTE = ["#e05a5a","#5ab8e0","#8b5ae0","#e0a85a","#5ae09a","#e07a5a","#5ae0d4","#c05ae0","#a0e05a","#e05aa0","#5a80e0","#e0c05a","#f0b860","#60c8f0"];
+const EMOJIS  = ["⭐","🎯","🎨","🏋","🧘","🍎","🎸","📷","✈️","🐾","🌸","💡","🔑","🎭","🏊","🚴","🌿","💊","📚","💼","🏃","🎪","🍕","🎬"];
+const CURRENCIES=[{id:"ILS",symbol:"₪",label:{he:"שקל",en:"ILS"}},{id:"USD",symbol:"$",label:{he:"דולר",en:"USD"}},{id:"EUR",symbol:"€",label:{he:"אירו",en:"EUR"}}];
+const CUR=id=>CURRENCIES.find(c=>c.id===id)||CURRENCIES[0];
+const PAYCOLOR={paid:"#5ae09a",pending:"#e0a85a",none:"#555"};
+const RECUR_IDS=["none","weekly","biweekly","monthly"];
+const T={
+he:{
+  appName:"לוח שנה ותשלומים", welcome:"ברוכים הבאים!", welcomeSub:"איזה סוג חשבון מתאים לך? אפשר לשנות את זה בכל רגע בהגדרות.",
+  private:"משתמש פרטי", privateSub:"ניהול אישי של אירועים ותשלומים", business:"בעל עסק", businessSub:"ניהול לקוחות, פגישות ותשלומים",
+  week:"שבועי", month:"חודשי", add:"+ הוסף", settings:"הגדרות", accountType:"סוג חשבון", settingsNote:"שינוי הסוג לא מוחק נתונים קיימים.", close:"סגור",
+  language:"שפה", defaultCurrency:"מטבע ברירת מחדל", currency:"מטבע",
+  weekEvents:"אירועי השבוע", monthEvents:"כל אירועי החודש", all:"הכל", paid:"שולם", pending:"ממתין", future:"עתידי", none:"ללא תשלום",
+  clickDayToAdd:"יש ללחוץ על יום להוספת אירוע", createFirst:cw=>`קודם יש ליצור ${cw} — לחיצה על + הוסף`,
+  allStatuses:"כל הסטטוסים", noPayments:"אין תשלומים", totalExpected:"סה״כ צפוי", total:"סה״כ",
+  newPunch:"כרטיסייה חדשה", editPunch:"עריכת כרטיסייה", punchHint:cw=>`💡 כשמוסיפים אירוע ביומן, הכרטיסייה של אותו ${cw} מנוכה אוטומטית`, noPunches:"אין כרטיסיות עדיין",
+  newPunchBtn:"+ כרטיסייה חדשה", activityName:"שם הפעילות", numLessons:"מספר שיעורים", numSessions:"מספר פגישות", price:"מחיר", createPunch:"צור כרטיסייה", saveChanges:"שמור שינויים", delete:"🗑 מחק",
+  punchDone:"⚠️ הכרטיסייה נגמרה!", punchLeft:n=>`⚠️ נשארו ${n} שיעורים`, punchRem:(r,t)=>`${r} מתוך ${t} נותרו`, cost:"עלות", perLesson:"לשיעור",
+  newEvent:"אירוע חדש", editEvent:"עריכת אירוע", title:"כותרת", titlePh:"לדוגמא: שיעור פילאטיס", date:"תאריך", time:"שעה",
+  client:"לקוח", clientSearchPh:"חיפוש לקוח לפי שם...", noClientFound:"לא נמצא לקוח בשם הזה", newClient:"+ לקוח חדש", noClients:"אין לקוחות",
+  category:"קטגוריה", noCategories:"אין קטגוריות", clickToCreate:"יש ללחוץ כאן ליצירה", newCategoryBtn:"+ קטגוריה חדשה",
+  repeat:"חזרה", recurNone:"ללא", recurWeekly:"שבועי", recurBiweekly:"דו-שבועי", recurMonthly:"חודשי", recurNote:n=>`✓ יווצרו ${n} מועדים קדימה`,
+  payment:"תשלום", amount:"סכום", notes:"הערות", cancel:"ביטול", save:"שמור",
+  punchDeduct:(name,rem)=>`🎟 שיעור ינוכה אוטומטית מ: ${name} (${rem} נותרו)`,
+  catManageBiz:"ניהול לקוחות", catManagePriv:"ניהול קטגוריות", catNewBiz:"לקוח חדש", catNewPriv:"קטגוריה חדשה",
+  catEmptyBiz:"אין לקוחות עדיין. אפשר להוסיף את הראשון!", catEmptyPriv:"אין קטגוריות עדיין. אפשר ליצור את הראשונה!",
+  catNamePhBiz:"לדוגמא: דנה כהן", catNamePhPriv:"לדוגמא: פילאטיס, ספא...", name:"שם", emoji:"אימוג'י", color:"צבע",
+  deleteEventTitle:"מחיקת אירוע", deleteEventMsg:"האם למחוק את האירוע?", deleteIrreversible:"פעולה זו לא ניתנת לביטול.",
+  searchPrefix:cw=>`חיפוש ${cw}...`, allOf:cwPl=>`כל ה${cwPl}`, notFound:"לא נמצא", clientWord:"לקוח", catWord:"קטגוריה", clientsWord:"לקוחות", catsWord:"קטגוריות",
+  tutorial:"הדרכה", tutSkip:"דלג", tutNext:"הבא", tutBack:"הקודם", tutStart:"בואו נתחיל", tutDone:"סיום",
+  authTitle:"לוח שנה ותשלומים", authLogin:"התחברות", authSignup:"הרשמה", authEmail:"אימייל", authPass:"סיסמה",
+  authLoginBtn:"התחבר", authSignupBtn:"הרשמה", authToSignup:"אין לך חשבון? הירשם", authToLogin:"כבר יש לך חשבון? התחבר",
+  authWait:"רגע...", authErr:"שגיאה. בדקו את הפרטים ונסו שוב.", authBadCreds:"אימייל או סיסמה שגויים.", authPassShort:"הסיסמה חייבת לפחות 6 תווים.", authLogout:"התנתקות", authCheckEmail:"נשלח אליך אימייל אימות. אשרו אותו ואז התחברו.",
+  tutPriv:[
+    {target:"tut-calmode",view:"cal",emoji:"📅",title:"תצוגת היומן",body:"כאן עוברים בין תצוגת שבוע לתצוגת חודש. לחיצה על יום בלוח פותחת אירוע חדש באותו תאריך."},
+    {target:"tut-add",view:"cal",emoji:"➕",title:"הוספת אירוע",body:"הכפתור הזה פותח אירוע חדש. בפעם הראשונה הוא יבקש ליצור קטגוריה — כל אירוע משויך לקטגוריה עם צבע ואימוג'י משלה."},
+    {target:"tut-nav-pay",view:"cal",emoji:"💳",title:"תשלומים",body:"בלשונית הזו רואים סיכום: כמה שולם, כמה ממתין, וסך הכל — מחושב מהאירועים עד היום בלבד. אפשר לסנן לפי קטגוריה וסטטוס."},
+    {target:"tut-nav-punch",view:"cal",emoji:"🎟️",title:"כרטיסיות",body:"יש לך חבילת שיעורים? כאן יוצרים כרטיסייה, וכל אירוע באותה קטגוריה ינוכה ממנה אוטומטית. תמיד רואים כמה שיעורים נשארו."},
+    {target:"tut-settings",view:"cal",emoji:"⚙️",title:"הגדרות",body:"כאן משנים שפה, מטבע ברירת מחדל, וסוג חשבון. אפשר גם לפתוח את ההדרכה הזו שוב בכל רגע."},
+  ],
+  tutBiz:[
+    {target:"tut-calmode",view:"cal",emoji:"📅",title:"תצוגת היומן",body:"כאן עוברים בין תצוגת שבוע לתצוגת חודש. לחיצה על יום בלוח פותחת פגישה חדשה באותו תאריך."},
+    {target:"tut-add",view:"cal",emoji:"➕",title:"קביעת פגישה",body:"הכפתור הזה פותח פגישה חדשה. אפשר לחפש לקוח לפי שם ולשייך אליו את הפגישה — בלי להקליד תיאור. כל לקוח מנוהל בנפרד עם צבע משלו."},
+    {target:"tut-nav-pay",view:"cal",emoji:"💳",title:"תשלומים",body:"בלשונית הזו רואים סיכום הכנסות: כמה שולם, כמה ממתין, וסך הכל — עד היום בלבד. אפשר לסנן לפי לקוח וסטטוס, וכל סכום יכול להיות במטבע אחר."},
+    {target:"tut-nav-punch",view:"cal",emoji:"🎟️",title:"כרטיסיות",body:"מכרת ללקוח חבילת פגישות? כאן יוצרים כרטיסייה עבורו, וכל פגישה תנוכה ממנה אוטומטית. תמיד יודעים כמה פגישות נשארו."},
+    {target:"tut-settings",view:"cal",emoji:"⚙️",title:"הגדרות",body:"כאן משנים שפה, מטבע ברירת מחדל, וסוג חשבון. אפשר גם לפתוח את ההדרכה הזו שוב בכל רגע."},
+  ],
+},
+en:{
+  appName:"Calendar & Payments", welcome:"Welcome!", welcomeSub:"Which account type fits you? You can change this anytime in settings.",
+  private:"Personal user", privateSub:"Manage your own events and payments", business:"Business owner", businessSub:"Manage clients, sessions and payments",
+  week:"Week", month:"Month", add:"+ Add", settings:"Settings", accountType:"Account type", settingsNote:"Changing the type won't delete existing data.", close:"Close",
+  language:"Language", defaultCurrency:"Default currency", currency:"Currency",
+  weekEvents:"This week's events", monthEvents:"All events this month", all:"All", paid:"Paid", pending:"Pending", future:"Upcoming", none:"No payment",
+  clickDayToAdd:"Tap a day to add an event", createFirst:cw=>`First create a ${cw} — tap + Add`,
+  allStatuses:"All statuses", noPayments:"No payments", totalExpected:"Total expected", total:"Total",
+  newPunch:"New punch card", editPunch:"Edit punch card", punchHint:cw=>`💡 When you add an event, that ${cw}'s punch card is deducted automatically`, noPunches:"No punch cards yet",
+  newPunchBtn:"+ New punch card", activityName:"Activity name", numLessons:"Number of lessons", numSessions:"Number of sessions", price:"Price", createPunch:"Create card", saveChanges:"Save changes", delete:"🗑 Delete",
+  punchDone:"⚠️ Card is finished!", punchLeft:n=>`⚠️ ${n} lessons left`, punchRem:(r,t)=>`${r} of ${t} left`, cost:"Cost", perLesson:"per lesson",
+  newEvent:"New event", editEvent:"Edit event", title:"Title", titlePh:"e.g. Pilates class", date:"Date", time:"Time",
+  client:"Client", clientSearchPh:"Search client by name...", noClientFound:"No client by that name", newClient:"+ New client", noClients:"No clients",
+  category:"Category", noCategories:"No categories", clickToCreate:"tap here to create", newCategoryBtn:"+ New category",
+  repeat:"Repeat", recurNone:"None", recurWeekly:"Weekly", recurBiweekly:"Biweekly", recurMonthly:"Monthly", recurNote:n=>`✓ ${n} future dates will be created`,
+  payment:"Payment", amount:"Amount", notes:"Notes", cancel:"Cancel", save:"Save",
+  punchDeduct:(name,rem)=>`🎟 A lesson will be deducted from: ${name} (${rem} left)`,
+  catManageBiz:"Manage clients", catManagePriv:"Manage categories", catNewBiz:"New client", catNewPriv:"New category",
+  catEmptyBiz:"No clients yet. Add your first!", catEmptyPriv:"No categories yet. Create your first!",
+  catNamePhBiz:"e.g. Jane Smith", catNamePhPriv:"e.g. Pilates, Spa...", name:"Name", emoji:"Emoji", color:"Color",
+  deleteEventTitle:"Delete event", deleteEventMsg:"Delete this event?", deleteIrreversible:"This action cannot be undone.",
+  searchPrefix:cw=>`Search ${cw}...`, allOf:cwPl=>`All ${cwPl}`, notFound:"Not found", clientWord:"client", catWord:"category", clientsWord:"clients", catsWord:"categories",
+  tutorial:"Tutorial", tutSkip:"Skip", tutNext:"Next", tutBack:"Back", tutStart:"Let's start", tutDone:"Done",
+  authTitle:"Calendar & Payments", authLogin:"Log in", authSignup:"Sign up", authEmail:"Email", authPass:"Password",
+  authLoginBtn:"Log in", authSignupBtn:"Sign up", authToSignup:"No account? Sign up", authToLogin:"Already have an account? Log in",
+  authWait:"One moment...", authErr:"Something went wrong. Check details and try again.", authBadCreds:"Wrong email or password.", authPassShort:"Password must be at least 6 characters.", authLogout:"Log out", authCheckEmail:"A confirmation email was sent. Confirm it, then log in.",
+  tutPriv:[
+    {target:"tut-calmode",view:"cal",emoji:"📅",title:"Calendar view",body:"Switch between week and month view here. Tapping a day on the grid opens a new event on that date."},
+    {target:"tut-add",view:"cal",emoji:"➕",title:"Add an event",body:"This button opens a new event. The first time, it'll ask you to create a category — every event belongs to a category with its own color and emoji."},
+    {target:"tut-nav-pay",view:"cal",emoji:"💳",title:"Payments",body:"This tab shows a summary: how much was paid, how much is pending, and the total — calculated from events up to today only. You can filter by category and status."},
+    {target:"tut-nav-punch",view:"cal",emoji:"🎟️",title:"Punch cards",body:"Got a class package? Create a punch card here, and every event in that category is deducted automatically. You always see how many lessons remain."},
+    {target:"tut-settings",view:"cal",emoji:"⚙️",title:"Settings",body:"Change language, default currency, and account type here. You can also reopen this tutorial anytime."},
+  ],
+  tutBiz:[
+    {target:"tut-calmode",view:"cal",emoji:"📅",title:"Calendar view",body:"Switch between week and month view here. Tapping a day on the grid opens a new session on that date."},
+    {target:"tut-add",view:"cal",emoji:"➕",title:"Book a session",body:"This button opens a new session. You can search a client by name and attach the session to them — no description needed. Each client is managed separately with their own color."},
+    {target:"tut-nav-pay",view:"cal",emoji:"💳",title:"Payments",body:"This tab shows an income summary: paid, pending, and total — up to today only. Filter by client and status, and each amount can be in a different currency."},
+    {target:"tut-nav-punch",view:"cal",emoji:"🎟️",title:"Punch cards",body:"Sold a client a session package? Create a punch card for them here, and each session is deducted automatically. You always know how many sessions remain."},
+    {target:"tut-settings",view:"cal",emoji:"⚙️",title:"Settings",body:"Change language, default currency, and account type here. You can also reopen this tutorial anytime."},
+  ],
+},
+};
+function today(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function addDays(s,n){ const d=new Date(s); d.setDate(d.getDate()+n); return d.toISOString().split("T")[0]; }
+function addMonths(s,n){ const d=new Date(s); d.setMonth(d.getMonth()+n); return d.toISOString().split("T")[0]; }
+function weekOf(base){ const d=new Date(base),sun=new Date(d); sun.setDate(d.getDate()-d.getDay()); return Array.from({length:7},(_,i)=>{ const x=new Date(sun); x.setDate(sun.getDate()+i); return x.toISOString().split("T")[0]; }); }
+function monthGrid(y,m){ const first=new Date(y,m,1),last=new Date(y,m+1,0),cells=[]; for(let i=0;i<first.getDay();i++) cells.push(null); for(let d=1;d<=last.getDate();d++) cells.push(y+"-"+pad(m+1)+"-"+pad(d)); return cells; }
+function makeRecurring(base,gid){ if(!base.recur||base.recur==="none") return []; const monthly=base.recur==="monthly",count=monthly?6:12; let cur=base.date; const res=[]; for(let i=1;i<=count;i++){ cur=monthly?addMonths(cur,1):addDays(cur,base.recur==="weekly"?7:14); res.push({...base,id:gid+"_r"+i,date:cur,recurGroupId:gid}); } return res; }
+function money(amount,curId){ const c=CUR(curId); return c.symbol+Number(amount||0).toLocaleString(); }
+// ---- ממירים: שורת דאטה בייס <-> אובייקט באפליקציה ----
+function dbToEvent(r){ return {id:r.id,title:r.title,date:r.event_date,time:r.event_time,category:r.category_id||"",payment:r.payment,amount:r.amount==null?"":String(r.amount),currency:r.currency||"ILS",notes:r.notes||"",recur:r.recur||"none",recurGroupId:r.recur_group_id||undefined}; }
+function eventToDb(e,uid){ return {user_id:uid,title:e.title,event_date:e.date,event_time:e.time,category_id:e.category||null,payment:e.payment,amount:e.amount===""||e.amount==null?0:Number(e.amount),currency:e.currency||"ILS",notes:e.notes||"",recur:e.recur||"none",recur_group_id:e.recurGroupId||null}; }
+function dbToPunch(r){ return {id:r.id,name:r.name,total:r.total,used:r.used||0,category:r.category_id||"",amount:r.amount==null?"":String(r.amount)}; }
+let _cats=[];
+const EMPTY_EV={title:"",date:today(),time:"09:00",category:"",payment:"none",amount:"",notes:"",recur:"none",currency:"ILS"};
+function App(){
+const [session,setSession]=useState(undefined);   // undefined=טוען, null=לא מחובר, object=מחובר
+const [loading,setLoading]=useState(true);
+const [userType,setUserType]=useState(null);
+const [lang,setLang]=useState("he");
+const [defCur,setDefCur]=useState("ILS");
+const [tutSeen,setTutSeen]=useState(true);
+const [pickedType,setPickedType]=useState(false);
+const [tutStep,setTutStep]=useState(null);
+const [settingsModal,setSettingsModal]=useState(false);
+const [custSearch,setCustSearch]=useState("");
+const isBiz=userType==="business";
+const rtl=lang==="he";
+const t=T[lang];
+const DAYS_HE=DAYS[lang], MONTHS_HE=MONTHS[lang];
+useEffect(()=>{ document.documentElement.lang=lang; document.documentElement.dir=rtl?"rtl":"ltr"; },[lang]);
+
+// ---- אתחול: מעקב אחר מצב התחברות ----
+useEffect(()=>{
+  sb.auth.getSession().then(({data})=>{ setSession(data.session||null); });
+  const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>{ setSession(s||null); });
+  return ()=>{ sub.subscription.unsubscribe(); };
+},[]);
+
+const [events,setEvents]=useState([]);
+const [punches,setPunches]=useState([]);
+const [categories,setCategories]=useState([]);
+
+// ---- טעינת כל הנתונים של המשתמש מהדאטה בייס ----
+async function loadAll(uid){
+  setLoading(true);
+  try{
+    const [prof,cats,evs,pcs]=await Promise.all([
+      sb.from("profiles").select("*").eq("id",uid).single(),
+      sb.from("categories").select("*").order("created_at"),
+      sb.from("events").select("*").order("event_date"),
+      sb.from("punch_cards").select("*").order("created_at"),
+    ]);
+    if(prof.data){ setUserType(prof.data.user_type); setLang(prof.data.language||"he"); setDefCur(prof.data.default_currency||"ILS"); setTutSeen(!!prof.data.tutorial_seen); }
+    else { setTutSeen(false); setPickedType(false); }
+    setCategories((cats.data||[]).map(c=>({id:c.id,label:c.label,emoji:c.emoji,color:c.color})));
+    _cats=(cats.data||[]).map(c=>({id:c.id,label:c.label,emoji:c.emoji,color:c.color}));
+    setEvents((evs.data||[]).map(dbToEvent));
+    setPunches((pcs.data||[]).map(dbToPunch));
+  }catch(err){ console.error("load error",err); }
+  setLoading(false);
+}
+useEffect(()=>{
+  if(session===undefined) return;
+  if(session===null){ setLoading(false); return; }
+  loadAll(session.user.id);
+},[session]);
+
+const uid=session?.user?.id;
+
+// ---- שמירת העדפות לפרופיל ----
+async function saveProfile(patch){ if(!uid) return; await sb.from("profiles").upsert({id:uid,...patch}); }
+function changeLang(x){ setLang(x); saveProfile({language:x}); }
+function changeCur(x){ setDefCur(x); saveProfile({default_currency:x}); }
+
+const L={
+  catWord: isBiz?t.clientWord:t.catWord,
+  catWordPl: isBiz?t.clientsWord:t.catsWord,
+  catManage: isBiz?t.catManageBiz:t.catManagePriv,
+  catNew: isBiz?t.catNewBiz:t.catNewPriv,
+  catEmpty: isBiz?t.catEmptyBiz:t.catEmptyPriv,
+  catNamePh: isBiz?t.catNamePhBiz:t.catNamePhPriv,
+};
+const PAYLABEL={paid:t.paid,pending:t.pending,none:t.none};
+async function chooseUserType(x){ const first=!pickedType; setPickedType(true); setUserType(x); await saveProfile({user_type:x}); if(first&&!tutSeen){ setTutStep(0); } }
+function openTutorial(){ setSettingsModal(false); setTutStep(0); }
+function closeTutorial(){ setTutSeen(true); saveProfile({tutorial_seen:true}); setTutStep(null); }
+async function logout(){ await sb.auth.signOut(); setUserType(null); setEvents([]); setCategories([]); setPunches([]); setSettingsModal(false); }
+const [view,setView]=useState("cal");
+const [calMode,setCalMode]=useState("week");
+const [base,setBase]=useState(today());
+const [bMonth,setBMonth]=useState({y:new Date().getFullYear(),m:new Date().getMonth()});
+const [modal,setModal]=useState(false);
+const [punchModal,setPunchModal]=useState(false);
+const [catModal,setCatModal]=useState(false);
+const [editing,setEditing]=useState(null);
+const [form,setForm]=useState(EMPTY_EV);
+const [pForm,setPForm]=useState({name:"",total:10,category:"",amount:""});
+const [pEditing,setPEditing]=useState(null);
+const [pSearch,setPSearch]=useState("");
+const [fListOpen,setFListOpen]=useState(false);
+const [suggest,setSuggest]=useState(null);
+const [nCat,setNCat]=useState({label:"",emoji:"⭐",color:PALETTE[0]});
+const [fCat,setFCat]=useState("all");
+const [fPay,setFPay]=useState("all");
+const [calPayFilter,setCalPayFilter]=useState("all");
+const [deleteConfirm,setDeleteConfirm]=useState(null);
+useEffect(()=>{ _cats=categories; },[categories]);
+const C=id=>categories.find(c=>c.id===id)||{id:"?",label:"?",color:"#555",emoji:"📌"};
+async function addCategory(){ if(!nCat.label.trim()||!uid) return; const payload={user_id:uid,label:nCat.label.trim(),emoji:nCat.emoji,color:nCat.color}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return; } setCategories(cs=>[...cs,{id:data.id,label:data.label,emoji:data.emoji,color:data.color}]); setNCat({label:"",emoji:"⭐",color:PALETTE[0]}); }
+async function deleteCategory(id){ const {error}=await sb.from("categories").delete().eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.filter(c=>c.id!==id)); }
+function getSuggest(val){ if(!val||val.length<2) return null; const lo=val.toLowerCase(); const hits=events.filter(e=>e.title.toLowerCase().includes(lo)); return hits.length?hits.sort((a,b)=>b.date.localeCompare(a.date))[0]:null; }
+function openNew(date){ setEditing(null); setForm({...EMPTY_EV,date:date||today(),category:isBiz?"":(categories[0]?.id||""),currency:defCur}); setSuggest(null); setCustSearch(""); setModal(true); }
+function openEdit(ev){ setEditing(ev.id); setForm({...EMPTY_EV,...ev,currency:ev.currency||"ILS"}); setSuggest(null); setCustSearch(""); setModal(true); }
+function pickCustomer(c){ setForm(f=>({...f,category:c.id,title:c.label})); setCustSearch(""); }
+async function saveEvent(){ if(!form.title.trim()||!uid) return;
+  if(editing){
+    const {error}=await sb.from("events").update(eventToDb(form,uid)).eq("id",editing);
+    if(error){ console.error(error); return; }
+    setEvents(es=>es.map(e=>e.id===editing?{...form,id:editing}:e));
+  } else {
+    // בנה את האירוע הבסיסי + כל המופעים החוזרים, והכנס בבת אחת
+    const rows=[]; const baseRow=eventToDb(form,uid);
+    const recurs=makeRecurring({...form},"tmp");
+    if(recurs.length){
+      // נכניס קודם את הבסיס כדי לקבל id, ואז נסמן את כל הקבוצה תחת אותו id
+      const {data:baseData,error:e1}=await sb.from("events").insert(baseRow).select().single();
+      if(e1){ console.error(e1); return; }
+      const gid=baseData.id;
+      await sb.from("events").update({recur_group_id:gid}).eq("id",gid);
+      const recurRows=recurs.map(r=>({...eventToDb(r,uid),recur_group_id:gid}));
+      const {data:recurData,error:e2}=await sb.from("events").insert(recurRows).select();
+      if(e2){ console.error(e2); }
+      const newEvs=[dbToEvent({...baseData,recur_group_id:gid}),...((recurData||[]).map(dbToEvent))];
+      setEvents(es=>[...es,...newEvs]);
+    } else {
+      const {data,error}=await sb.from("events").insert(baseRow).select().single();
+      if(error){ console.error(error); return; }
+      setEvents(es=>[...es,dbToEvent(data)]);
+    }
+    // ניכוי כרטיסייה פעילה לאותה קטגוריה
+    const ap=punches.find(p=>p.category===form.category&&(p.used||0)<p.total);
+    if(ap){ const nu=(ap.used||0)+1; await sb.from("punch_cards").update({used:nu}).eq("id",ap.id); setPunches(ps=>ps.map(p=>p.id===ap.id?{...p,used:nu}:p)); }
+  }
+  setModal(false);
+}
+async function deleteEvent(id){ const {error}=await sb.from("events").delete().eq("id",id); if(error){ console.error(error); return; } setEvents(es=>es.filter(e=>e.id!==id)); setDeleteConfirm(null); setModal(false); }
+async function togglePay(id,e){ e&&e.stopPropagation(); const ev=events.find(x=>x.id===id); if(!ev) return; const nxt=ev.payment==="pending"?"paid":ev.payment==="paid"?"pending":ev.payment; if(nxt===ev.payment) return; setEvents(es=>es.map(x=>x.id===id?{...x,payment:nxt}:x)); const {error}=await sb.from("events").update({payment:nxt}).eq("id",id); if(error){ console.error(error); setEvents(es=>es.map(x=>x.id===id?{...x,payment:ev.payment}:x)); } }
+function openNewPunch(){ setPEditing(null); setPForm({name:"",total:10,category:isBiz?"":(categories[0]?.id||""),amount:""}); setPSearch(""); setPunchModal(true); }
+function openEditPunch(pc){ setPEditing(pc.id); setPForm({name:pc.name,total:pc.total,category:pc.category,amount:pc.amount||""}); setPSearch(""); setPunchModal(true); }
+function pickPunchCustomer(c){ setPForm(f=>({...f,category:c.id,name:c.label})); setPSearch(""); }
+async function savePunch(){ const name=isBiz?(C(pForm.category).id!=="?"?C(pForm.category).label:""):pForm.name; if(!name.trim()||!uid) return;
+  const payload={user_id:uid,name,total:Number(pForm.total)||10,category_id:pForm.category||null,amount:pForm.amount===""?0:Number(pForm.amount)};
+  if(pEditing){
+    const {error}=await sb.from("punch_cards").update(payload).eq("id",pEditing); if(error){ console.error(error); return; }
+    setPunches(ps=>ps.map(p=>p.id===pEditing?{...p,name,total:payload.total,category:pForm.category,amount:String(payload.amount)}:p));
+  } else {
+    const {data,error}=await sb.from("punch_cards").insert({...payload,used:0}).select().single(); if(error){ console.error(error); return; }
+    setPunches(ps=>[...ps,dbToPunch(data)]);
+  }
+  setPunchModal(false); setPEditing(null); setPForm({name:"",total:10,category:categories[0]?.id||"",amount:""});
+}
+async function punchUse(id){ const p=punches.find(x=>x.id===id); if(!p) return; const nu=Math.min((p.used||0)+1,p.total); setPunches(ps=>ps.map(x=>x.id===id?{...x,used:nu}:x)); const {error}=await sb.from("punch_cards").update({used:nu}).eq("id",id); if(error){ console.error(error); setPunches(ps=>ps.map(x=>x.id===id?{...x,used:p.used}:x)); } }
+async function punchUndo(id){ const p=punches.find(x=>x.id===id); if(!p) return; const nu=Math.max((p.used||0)-1,0); setPunches(ps=>ps.map(x=>x.id===id?{...x,used:nu}:x)); const {error}=await sb.from("punch_cards").update({used:nu}).eq("id",id); if(error){ console.error(error); setPunches(ps=>ps.map(x=>x.id===id?{...x,used:p.used}:x)); } }
+async function punchDel(id){ const {error}=await sb.from("punch_cards").delete().eq("id",id); if(error){ console.error(error); return; } setPunches(ps=>ps.filter(p=>p.id!==id)); }
+const wDates=weekOf(base), mCells=monthGrid(bMonth.y,bMonth.m), todayStr=today();
+const activePunch=cat=>punches.find(p=>p.category===cat&&(p.used||0)<p.total);
+const isPast=e=>e.date<=todayStr;
+const payEvs=events.filter(e=>e.payment!=="none"&&isPast(e));
+const filtered=payEvs.filter(e=>(fCat==="all"||e.category===fCat)&&(fPay==="all"||e.payment===fPay));
+const sumEvs=payEvs.filter(e=>(e.currency||"ILS")===defCur);
+const totalPaid=sumEvs.filter(e=>e.payment==="paid").reduce((s,e)=>s+Number(e.amount||0),0);
+const totalPending=sumEvs.filter(e=>e.payment==="pending").reduce((s,e)=>s+Number(e.amount||0),0);
+const PayBar=()=>(
+<div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>
+{[["all",t.all,"#555"],["paid",t.paid,"#5ae09a"],["pending",t.pending,"#e0a85a"],["none",t.none,"#666"]].map(([v,l,c])=>(
+<button key={v} onClick={()=>setCalPayFilter(v)} style={{padding:"6px 13px",borderRadius:12,border:`1px solid ${calPayFilter===v?c:"#252535"}`,background:calPayFilter===v?c+"22":"transparent",color:calPayFilter===v?c:"#666",cursor:"pointer",fontSize:12,transition:"all .15s ease"}}>{l}</button>
+))}
+</div>
+);
+// מסך טעינה בזמן בדיקת התחברות / שליפת נתונים
+const showOnboarding = !tutSeen && !pickedType;
+if(session===undefined||(session&&loading)){
+  return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:40,height:40,borderRadius:12,background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,animation:"none"}}>✦</div></div>;
+}
+// לא מחובר → מסך הרשמה/כניסה
+if(!session){
+  return <AuthScreen lang={lang} setLang={setLang} t={t} rtl={rtl}/>;
+}
+if(showOnboarding){
+  return (
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
+      <div style={{position:"absolute",top:16,insetInlineEnd:16,display:"flex",gap:4}}>
+        {["he","en"].map(lg=>(
+          <button key={lg} onClick={()=>setLang(lg)} style={{padding:"7px 14px",borderRadius:11,border:`1px solid ${lang===lg?"#8b5ae0":"#252535"}`,background:lang===lg?"#8b5ae022":"transparent",color:lang===lg?"#8b5ae0":"#666",cursor:"pointer",fontSize:13}}>{lg==="he"?"עב":"EN"}</button>
+        ))}
+      </div>
+      <div style={{width:56,height:56,borderRadius:14,background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,marginBottom:18}}>✦</div>
+      <div style={{fontSize:19,fontWeight:800,color:"#f0ece4",marginBottom:6}}>{t.welcome}</div>
+      <div style={{fontSize:13,color:"#666",marginBottom:28,maxWidth:300}}>{t.welcomeSub}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:12,width:"100%",maxWidth:320}}>
+        <button onClick={()=>chooseUserType("private")} style={{padding:"18px",borderRadius:16,border:"1px solid #252535",background:"#161620",color:"#e8e4dc",cursor:"pointer",textAlign:rtl?"right":"left",display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:26}}>🙋</span>
+          <div><div style={{fontSize:14,fontWeight:700}}>{t.private}</div><div style={{fontSize:10,color:"#555",marginTop:2}}>{t.privateSub}</div></div>
+        </button>
+        <button onClick={()=>chooseUserType("business")} style={{padding:"18px",borderRadius:16,border:"1px solid #252535",background:"#161620",color:"#e8e4dc",cursor:"pointer",textAlign:rtl?"right":"left",display:"flex",alignItems:"center",gap:12}}>
+          <span style={{fontSize:26}}>💼</span>
+          <div><div style={{fontSize:14,fontWeight:700}}>{t.business}</div><div style={{fontSize:10,color:"#555",marginTop:2}}>{t.businessSub}</div></div>
+        </button>
+      </div>
+    </div>
+  );
+}
+return (
+<div style={{minHeight:"100vh",background:"#0d0d12",color:"#e8e4dc"}}>
+<header style={{background:"#111118",borderBottom:"1px solid #1c1c28",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
+<div style={{display:"flex",alignItems:"center",gap:9}}>
+<div style={{width:32,height:32,borderRadius:9,background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>✦</div>
+<span style={{fontSize:15,fontWeight:700,color:"#f0ece4"}}>{t.appName}</span>
+</div>
+<div style={{display:"flex",gap:4,alignItems:"center"}}>
+{[["cal","📅","#e05a5a"],["payments","💳","#8b5ae0"],["punches","🎟","#5ab8e0"]].map(([v,l,c])=>(
+<button key={v} id={v==="payments"?"tut-nav-pay":v==="punches"?"tut-nav-punch":"tut-nav-cal"} onClick={()=>setView(v)} style={{padding:"9px 13px",borderRadius:13,border:"none",background:view===v?c:"#1c1c28",color:view===v?"#fff":"#666",cursor:"pointer",fontSize:15,transition:"all .15s ease"}}>{l}</button>
+))}
+<button id="tut-settings" onClick={()=>setSettingsModal(true)} style={{padding:"9px 12px",borderRadius:13,border:"none",background:"#1c1c28",color:"#666",cursor:"pointer",fontSize:15,transition:"all .15s ease"}}>⚙️</button>
+</div>
+</header>
+  <div style={{maxWidth:840,margin:"0 auto",padding:"16px 13px 90px"}}>
+    {view==="cal" && <>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+        <div id="tut-calmode" style={{display:"flex",gap:4}}>
+          {[["week",t.week],["month",t.month]].map(([m,l])=>(
+            <button key={m} onClick={()=>setCalMode(m)} style={{padding:"8px 16px",borderRadius:12,border:"1px solid #252535",background:calMode===m?"#1c1c28":"transparent",color:calMode===m?"#e8e4dc":"#666",cursor:"pointer",fontSize:13,fontWeight:calMode===m?600:400,transition:"all .15s ease"}}>{l}</button>
+          ))}
+        </div>
+        <button id="tut-add" onClick={()=>categories.length?openNew():setCatModal(true)} style={S.addBtn}>{t.add}</button>
+      </div>
+      {calMode==="week" && <>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <button onClick={()=>setBase(addDays(base,-7))} style={S.navBtn}>‹</button>
+          <span style={{fontSize:11,color:"#444"}}>{new Date(wDates[0]).getDate()}–{new Date(wDates[6]).getDate()} {MONTHS_HE[new Date(wDates[6]).getMonth()]}</span>
+          <button onClick={()=>setBase(addDays(base,7))} style={S.navBtn}>›</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5,marginBottom:16}}>
+          {wDates.map(date=>{
+            const dayEvs=events.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time));
+            const isToday=date===todayStr, d=new Date(date);
+            return (
+              <div key={date} onClick={()=>categories.length?openNew(date):setCatModal(true)} style={{background:isToday?"#181826":"#111118",border:`1px solid ${isToday?"#e05a5a44":"#1c1c28"}`,borderRadius:10,padding:"8px 4px",minHeight:108,cursor:"pointer"}}>
+                <div style={{textAlign:"center",marginBottom:5}}>
+                  <div style={{fontSize:9,color:"#333"}}>{DAYS_HE[d.getDay()]}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:isToday?"#e05a5a":"#bbb"}}>{d.getDate()}</div>
+                </div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:3,justifyContent:"center",marginBottom:4}}>
+                  {dayEvs.slice(0,6).map(ev=>(
+                    <div key={ev.id} onClick={e=>{e.stopPropagation();openEdit(ev);}} style={{width:8,height:8,borderRadius:"50%",background:C(ev.category).color,cursor:"pointer"}}/>
+                  ))}
+                </div>
+                {dayEvs.slice(0,2).map(ev=>(
+                  <div key={ev.id} onClick={e=>{e.stopPropagation();openEdit(ev);}} style={{background:C(ev.category).color+"22",borderRight:`2px solid ${C(ev.category).color}`,borderRadius:4,padding:"2px 4px",marginBottom:2,fontSize:9,color:C(ev.category).color,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}}>{ev.title}</div>
+                ))}
+                {dayEvs.length>2&&<div style={{fontSize:8,color:"#333",textAlign:"center"}}>+{dayEvs.length-2}</div>}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:9}}>{t.weekEvents}</div>
+        <PayBar/>
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {wDates.flatMap(d=>events.filter(e=>e.date===d&&(calPayFilter==="all"||e.payment===calPayFilter))).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)).map(ev=>(
+            <EvRow key={ev.id} ev={ev} cat={C} onEdit={openEdit} onPay={togglePay} onDelete={id=>setDeleteConfirm(id)} days={DAYS_HE} months={MONTHS_HE} payLabel={PAYLABEL}/>
+          ))}
+          {wDates.flatMap(d=>events.filter(e=>e.date===d&&(calPayFilter==="all"||e.payment===calPayFilter))).length===0&&<Empty txt={categories.length?t.clickDayToAdd:t.createFirst(L.catWord)}/>}
+        </div>
+      </>}
+      {calMode==="month" && <>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+          <button onClick={()=>setBMonth(b=>{const m=b.m===0?11:b.m-1;return{y:b.m===0?b.y-1:b.y,m};})} style={S.navBtn}>‹</button>
+          <span style={{fontSize:13,fontWeight:600,color:"#ccc"}}>{MONTHS_HE[bMonth.m]} {bMonth.y}</span>
+          <button onClick={()=>setBMonth(b=>{const m=b.m===11?0:b.m+1;return{y:b.m===11?b.y+1:b.y,m};})} style={S.navBtn}>›</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
+          {DAYS_HE.map(d=><div key={d} style={{textAlign:"center",fontSize:8,color:"#2e2e40",padding:"2px 0"}}>{d}</div>)}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:18}}>
+          {mCells.map((date,i)=>{
+            if(!date) return <div key={"_"+i}/>;
+            const dayEvs=events.filter(e=>e.date===date),isToday=date===todayStr,d=new Date(date);
+            const catIds=[...new Set(dayEvs.map(e=>e.category))];
+            return (
+              <div key={date} onClick={()=>categories.length?openNew(date):setCatModal(true)} style={{background:isToday?"#181826":"#111118",border:`1px solid ${isToday?"#e05a5a44":"#1c1c28"}`,borderRadius:9,padding:"6px 4px",minHeight:64,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center"}}>
+                <div style={{fontSize:12,fontWeight:600,color:isToday?"#e05a5a":"#666",marginBottom:4}}>{d.getDate()}</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:2,justifyContent:"center"}}>
+                  {catIds.slice(0,4).map(cid=>{ const c=C(cid),cnt=dayEvs.filter(e=>e.category===cid).length; return (<div key={cid} style={{position:"relative"}}><div style={{width:9,height:9,borderRadius:"50%",background:c.color}}/>{cnt>1&&<div style={{position:"absolute",top:-3,right:-3,width:11,height:11,borderRadius:"50%",background:c.color,fontSize:7,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{cnt}</div>}</div>); })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{fontSize:12,fontWeight:600,color:"#666",marginBottom:9}}>{t.monthEvents}</div>
+        <PayBar/>
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {events.filter(e=>{const d=new Date(e.date);return d.getFullYear()===bMonth.y&&d.getMonth()===bMonth.m&&(calPayFilter==="all"||e.payment===calPayFilter);}).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)).map(ev=><EvRow key={ev.id} ev={ev} cat={C} onEdit={openEdit} onPay={togglePay} onDelete={id=>setDeleteConfirm(id)} days={DAYS_HE} months={MONTHS_HE} payLabel={PAYLABEL}/>)}
+        </div>
+      </>}
+    </>}
+    {view==="payments" && <>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:16}}>
+        <SumCard label={t.paid} amount={totalPaid} color="#5ae09a" emoji="✅" sym={CUR(defCur).symbol}/>
+        <SumCard label={t.pending} amount={totalPending} color="#e0a85a" emoji="⏳" sym={CUR(defCur).symbol}/>
+        <SumCard label={t.total} amount={totalPaid+totalPending} color="#8b5ae0" emoji="💳" sym={CUR(defCur).symbol}/>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:11,flexWrap:"wrap",alignItems:"center"}}>
+        <Combo value={fCat} onChange={setFCat} categories={categories} C={C} allLabel={t.allOf(L.catWordPl)} placeholder={t.searchPrefix(L.catWord)} noneLabel={t.notFound}/>
+        <select value={fPay} onChange={e=>setFPay(e.target.value)} style={S.sel}>
+          <option value="all">{t.allStatuses}</option>
+          <option value="paid">{t.paid}</option>
+          <option value="pending">{t.pending}</option>
+        </select>
+        <button onClick={()=>categories.length?openNew():setCatModal(true)} style={{...S.addBtn,marginInlineStart:"auto"}}>{t.add}</button>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+        {filtered.sort((a,b)=>b.date.localeCompare(a.date)).map(ev=><EvRow key={ev.id} ev={ev} cat={C} onEdit={openEdit} onPay={togglePay} onDelete={id=>setDeleteConfirm(id)} showAmt days={DAYS_HE} months={MONTHS_HE} payLabel={PAYLABEL}/>)}
+        {filtered.length===0&&<Empty txt={t.noPayments}/>}
+      </div>
+    </>}
+    {view==="punches" && <>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        <button onClick={()=>categories.length?openNewPunch():setCatModal(true)} style={S.addBtn}>{t.newPunchBtn}</button>
+        <button onClick={()=>setCatModal(true)} style={{...S.addBtn,background:"#1c1c28",color:"#888"}}>✏️ {L.catWordPl}</button>
+      </div>
+      <div style={{background:"#5ab8e011",border:"1px solid #5ab8e022",borderRadius:10,padding:"9px 12px",marginBottom:16,fontSize:10,color:"#5ab8e0",lineHeight:1.6}}>
+        {t.punchHint(L.catWord)}
+      </div>
+      {punches.length===0&&<Empty txt={t.noPunches}/>}
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        {punches.map(pc=>{
+          const used=pc.used||0,total=Number(pc.total)||10,rem=total-used,pct=used/total;
+          const c=C(pc.category),isDone=rem<=0,isAlmost=rem<=2&&!isDone;
+          return (
+            <div key={pc.id} style={{background:"#111118",border:`1px solid ${isDone?"#e05a5a44":isAlmost?"#e0a85a44":"#1c1c28"}`,borderRadius:14,padding:16}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"center",gap:9}}>
+                  <div style={{width:36,height:36,borderRadius:9,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{c.emoji}</div>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:700,color:"#e8e4dc"}}>{pc.name}</div>
+                    <div style={{fontSize:10,color:isDone?"#e05a5a":isAlmost?"#e0a85a":"#444",marginTop:1}}>{isDone?t.punchDone:isAlmost?t.punchLeft(rem):t.punchRem(rem,total)}</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:4}}>
+                  <button onClick={()=>openEditPunch(pc)} style={{...S.circBtn,color:"#888"}}>✏️</button>
+                  <button onClick={()=>punchUndo(pc.id)} disabled={used<=0} style={{...S.circBtn,color:"#444"}}>↩</button>
+                  <button onClick={()=>punchUse(pc.id)} disabled={isDone} style={{...S.circBtn,background:isDone?"#1c1c28":c.color+"33",color:isDone?"#333":c.color}}>✓</button>
+                  <button onClick={()=>punchDel(pc.id)} style={{...S.circBtn,borderColor:"#e05a5a22",color:"#e05a5a66"}}>✕</button>
+                </div>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:9}}>
+                {Array.from({length:total},(_,i)=>(
+                  <div key={i} style={{width:20,height:20,borderRadius:"50%",background:i<used?c.color:"#1c1c28",border:`2px solid ${i<used?c.color:"#252535"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:i<used?"#fff":"transparent"}}>✓</div>
+                ))}
+              </div>
+              <div style={{height:3,background:"#1c1c28",borderRadius:2,overflow:"hidden",marginBottom:pc.amount?6:0}}>
+                <div style={{height:"100%",width:`${pct*100}%`,background:isDone?"#e05a5a":isAlmost?"#e0a85a":c.color,borderRadius:2}}/>
+              </div>
+              {pc.amount&&<div style={{fontSize:9,color:"#3a3a4a",marginTop:6}}>{t.cost}: <span style={{color:"#bbb"}}>{money(pc.amount,defCur)}</span> · {t.perLesson}: <span style={{color:"#bbb"}}>{money((Number(pc.amount)/total).toFixed(0),defCur)}</span></div>}
+            </div>
+          );
+        })}
+      </div>
+    </>}
+  </div>
+  {deleteConfirm&&(
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setDeleteConfirm(null)}>
+      <div style={{background:"#161620",border:"1px solid #e05a5a44",borderRadius:16,padding:"24px 22px",width:"min(320px,90vw)",textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:28,marginBottom:10}}>🗑️</div>
+        <div style={{fontSize:14,fontWeight:700,color:"#f0ece4",marginBottom:6}}>{t.deleteEventTitle}</div>
+        <div style={{fontSize:11,color:"#555",marginBottom:20}}>{t.deleteEventMsg}<br/>{t.deleteIrreversible}</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setDeleteConfirm(null)} style={{flex:1,padding:"9px",borderRadius:10,border:"1px solid #252535",background:"transparent",color:"#666",cursor:"pointer"}}>{t.cancel}</button>
+          <button onClick={()=>deleteEvent(deleteConfirm)} style={{flex:1,padding:"9px",borderRadius:10,border:"none",background:"#e05a5a",color:"#fff",cursor:"pointer",fontWeight:600}}>{lang==="he"?"מחק":"Delete"}</button>
+        </div>
+      </div>
+    </div>
+  )}
+  {modal&&(
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"92vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+          <span style={{fontSize:14,fontWeight:700,color:"#f0ece4"}}>{editing?t.editEvent:t.newEvent}</span>
+          <button onClick={()=>setModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:17}}>✕</button>
+        </div>
+        {isBiz?(
+          <>
+            <label style={S.lbl}>{t.client}</label>
+            {categories.length===0?(
+              <div style={{fontSize:11,color:"#555",marginBottom:12}}>{t.noClients} — <span onClick={()=>{setModal(false);setCatModal(true);}} style={{color:"#8b5ae0",cursor:"pointer",textDecoration:"underline"}}>{t.clickToCreate}</span></div>
+            ):(
+              <div style={{position:"relative",marginBottom:12}}>
+                {form.category?(
+                  <div style={{display:"flex",alignItems:"center",gap:8,background:C(form.category).color+"22",border:`1px solid ${C(form.category).color}`,borderRadius:10,padding:"9px 12px"}}>
+                    <span style={{fontSize:16}}>{C(form.category).emoji}</span>
+                    <span style={{flex:1,fontSize:13,fontWeight:600,color:C(form.category).color}}>{C(form.category).label}</span>
+                    <button onClick={()=>{setForm(f=>({...f,category:"",title:""}));setCustSearch("");}} style={{background:"none",border:"none",color:C(form.category).color,cursor:"pointer",fontSize:13}}>✕</button>
+                  </div>
+                ):(
+                  <>
+                    <input value={custSearch} onChange={e=>setCustSearch(e.target.value)} placeholder={t.clientSearchPh} style={{...S.inp,marginBottom:8}}/>
+                    <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:180,overflowY:"auto"}}>
+                      {categories.filter(c=>c.label.toLowerCase().includes(custSearch.toLowerCase())).map(c=>{ const ap=activePunch(c.id); return (
+                        <div key={c.id} onClick={()=>pickCustomer(c)} style={{display:"flex",alignItems:"center",gap:9,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px",cursor:"pointer"}}>
+                          <div style={{width:30,height:30,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{c.emoji}</div>
+                          <span style={{flex:1,fontSize:13,color:"#ddd"}}>{c.label}</span>
+                          {ap&&<span style={{fontSize:9,color:c.color}}>🎟 {ap.total-(ap.used||0)}</span>}
+                        </div>
+                      ); })}
+                      {categories.filter(c=>c.label.toLowerCase().includes(custSearch.toLowerCase())).length===0&&(
+                        <div style={{fontSize:11,color:"#444",padding:"6px 0"}}>{t.noClientFound}</div>
+                      )}
+                    </div>
+                  </>
+                )}
+                <button onClick={()=>{setModal(false);setCatModal(true);}} style={{marginTop:8,padding:"8px 14px",borderRadius:13,border:"1px dashed #3a3a4a",background:"transparent",color:"#666",cursor:"pointer",fontSize:13}}>{t.newClient}</button>
+              </div>
+            )}
+          </>
+        ):(
+          <>
+            <label style={S.lbl}>{t.title}</label>
+            <div style={{position:"relative",marginBottom:10}}>
+              <input value={form.title} onChange={e=>{setForm(f=>({...f,title:e.target.value}));setSuggest(getSuggest(e.target.value));}} placeholder={t.titlePh} style={{...S.inp,marginBottom:0}}/>
+              {suggest&&!editing&&(
+                <div onClick={()=>{setForm(f=>({...f,title:suggest.title,time:suggest.time,category:suggest.category,amount:suggest.amount||f.amount,payment:suggest.payment||f.payment}));setSuggest(null);}} style={{position:"absolute",top:"100%",right:0,left:0,background:"#1e1e30",border:"1px solid #8b5ae044",borderRadius:9,padding:"7px 11px",cursor:"pointer",zIndex:10,marginTop:2,fontSize:11}}>
+                  <span style={{color:"#8b5ae0"}}>✦ </span><span style={{color:"#999"}}>{lang==="he"?"השלם: ":"Autofill: "}</span><span style={{color:"#e8e4dc"}}>{suggest.title}</span><span style={{color:"#444"}}> · {suggest.time} · {C(suggest.category).emoji}</span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+          <div><label style={S.lbl}>{t.date}</label><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={S.inp}/></div>
+          <div><label style={S.lbl}>{t.time}</label><input type="time" value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))} style={S.inp}/></div>
+        </div>
+        {!isBiz&&<>
+        <label style={S.lbl}>{t.category}</label>
+        {categories.length===0?(
+          <div style={{fontSize:11,color:"#555",marginBottom:12}}>{t.noCategories} — <span onClick={()=>{setModal(false);setCatModal(true);}} style={{color:"#8b5ae0",cursor:"pointer",textDecoration:"underline"}}>{t.clickToCreate}</span></div>
+        ):(
+          <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:11}}>
+            {categories.map(c=>{ const ap=activePunch(c.id); return (
+              <button key={c.id} onClick={()=>setForm(f=>({...f,category:c.id}))} style={{padding:"7px 13px",borderRadius:13,border:`1px solid ${form.category===c.id?c.color:"#252535"}`,background:form.category===c.id?c.color+"33":"transparent",color:form.category===c.id?c.color:"#888",cursor:"pointer",fontSize:13,position:"relative",transition:"all .15s ease"}}>
+                {c.emoji} {c.label}
+                {ap&&<span style={{position:"absolute",top:-4,left:-4,width:10,height:10,borderRadius:"50%",background:c.color,fontSize:6,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center"}}>{ap.total-(ap.used||0)}</span>}
+              </button>
+            ); })}
+            <button onClick={()=>{setModal(false);setCatModal(true);}} style={{padding:"7px 13px",borderRadius:13,border:"1px dashed #3a3a4a",background:"transparent",color:"#666",cursor:"pointer",fontSize:13}}>{t.newCategoryBtn}</button>
+          </div>
+        )}
+        </>}
+        {form.category&&activePunch(form.category)&&!editing&&(
+          <div style={{background:C(form.category).color+"11",border:`1px solid ${C(form.category).color}33`,borderRadius:9,padding:"6px 10px",marginBottom:11,fontSize:10,color:C(form.category).color}}>
+            {t.punchDeduct(activePunch(form.category)?.name,(activePunch(form.category)?.total-(activePunch(form.category)?.used||0)))}
+          </div>
+        )}
+        {!editing&&<>
+          <label style={S.lbl}>{t.repeat}</label>
+          <div style={{display:"flex",gap:4,marginBottom:10,flexWrap:"wrap"}}>
+            {RECUR_IDS.map(rid=>{ const rlabel={none:t.recurNone,weekly:t.recurWeekly,biweekly:t.recurBiweekly,monthly:t.recurMonthly}[rid]; return (
+              <button key={rid} onClick={()=>setForm(f=>({...f,recur:rid}))} style={{padding:"7px 13px",borderRadius:13,border:`1px solid ${form.recur===rid?"#5ae09a":"#252535"}`,background:form.recur===rid?"#5ae09a22":"transparent",color:form.recur===rid?"#5ae09a":"#888",cursor:"pointer",fontSize:13,transition:"all .15s ease"}}>{rlabel}</button>
+            ); })}
+          </div>
+          {form.recur!=="none"&&<div style={{background:"#5ae09a0f",border:"1px solid #5ae09a22",borderRadius:9,padding:"6px 10px",marginBottom:10,fontSize:10,color:"#5ae09a"}}>{t.recurNote(form.recur==="monthly"?6:12)}</div>}
+        </>}
+        <label style={S.lbl}>{t.payment}</label>
+        <div style={{display:"flex",gap:5,marginBottom:9}}>
+          {[["paid",t.paid],["pending",t.pending],["none",t.none]].map(([k,lbl])=>{ const col=PAYCOLOR[k]; return (
+            <button key={k} onClick={()=>setForm(f=>({...f,payment:k}))} style={{flex:1,padding:"10px",borderRadius:10,border:`1px solid ${form.payment===k?col:"#252535"}`,background:form.payment===k?col+"22":"transparent",color:form.payment===k?col:"#888",cursor:"pointer",fontSize:13,fontWeight:form.payment===k?600:400,transition:"all .15s ease"}}>{lbl}</button>
+          ); })}
+        </div>
+        {form.payment!=="none"&&<><label style={S.lbl}>{t.amount}</label>
+        <div style={{display:"flex",gap:6,marginBottom:10}}>
+          <input type="number" value={form.amount} onChange={e=>setForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={{...S.inp,marginBottom:0,flex:1}}/>
+          <select value={form.currency||"ILS"} onChange={e=>setForm(f=>({...f,currency:e.target.value}))} style={{...S.sel,minWidth:90}}>
+            {CURRENCIES.map(cu=><option key={cu.id} value={cu.id}>{cu.symbol} {cu.label[lang]}</option>)}
+          </select>
+        </div></>}
+        <label style={S.lbl}>{t.notes}</label>
+        <textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} rows={2} style={{...S.inp,resize:"none"}}/>
+        <div style={{display:"flex",gap:6,marginTop:4}}>
+          {editing&&<button onClick={()=>{setModal(false);setDeleteConfirm(editing);}} style={{padding:"9px 12px",borderRadius:10,border:"1px solid #e05a5a33",background:"transparent",color:"#e05a5a",cursor:"pointer",fontSize:11,fontWeight:600}}>{t.delete}</button>}
+          <button onClick={()=>setModal(false)} style={{flex:1,padding:"9px",borderRadius:10,border:"1px solid #252535",background:"transparent",color:"#444",cursor:"pointer"}}>{t.cancel}</button>
+          <button onClick={saveEvent} style={{flex:2,padding:"9px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>{t.save}</button>
+        </div>
+      </div>
+    </div>
+  )}
+  {punchModal&&(
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setPunchModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"92vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+          <span style={{fontSize:14,fontWeight:700,color:"#f0ece4"}}>{pEditing?t.editPunch:t.newPunch}</span>
+          <button onClick={()=>setPunchModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:17}}>✕</button>
+        </div>
+        {isBiz?(
+          <>
+            <label style={S.lbl}>{t.client}</label>
+            {categories.length===0?(
+              <div style={{fontSize:11,color:"#555",marginBottom:12}}>{t.noClients} — <span onClick={()=>{setPunchModal(false);setCatModal(true);}} style={{color:"#8b5ae0",cursor:"pointer",textDecoration:"underline"}}>{t.clickToCreate}</span></div>
+            ):pForm.category&&C(pForm.category).id!=="?"?(
+              <div style={{display:"flex",alignItems:"center",gap:8,background:C(pForm.category).color+"22",border:`1px solid ${C(pForm.category).color}`,borderRadius:10,padding:"9px 12px",marginBottom:12}}>
+                <span style={{fontSize:16}}>{C(pForm.category).emoji}</span>
+                <span style={{flex:1,fontSize:13,fontWeight:600,color:C(pForm.category).color}}>{C(pForm.category).label}</span>
+                {!pEditing&&<button onClick={()=>{setPForm(f=>({...f,category:"",name:""}));setPSearch("");}} style={{background:"none",border:"none",color:C(pForm.category).color,cursor:"pointer",fontSize:13}}>✕</button>}
+              </div>
+            ):(
+              <div style={{marginBottom:12}}>
+                <input value={pSearch} onChange={e=>setPSearch(e.target.value)} placeholder={t.clientSearchPh} style={{...S.inp,marginBottom:8}}/>
+                <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:170,overflowY:"auto"}}>
+                  {categories.filter(c=>c.label.toLowerCase().includes(pSearch.toLowerCase())).map(c=>(
+                    <div key={c.id} onClick={()=>pickPunchCustomer(c)} style={{display:"flex",alignItems:"center",gap:9,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px",cursor:"pointer"}}>
+                      <div style={{width:30,height:30,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{c.emoji}</div>
+                      <span style={{flex:1,fontSize:13,color:"#ddd"}}>{c.label}</span>
+                    </div>
+                  ))}
+                  {categories.filter(c=>c.label.toLowerCase().includes(pSearch.toLowerCase())).length===0&&(
+                    <div style={{fontSize:11,color:"#444",padding:"6px 0"}}>{t.noClientFound}</div>
+                  )}
+                </div>
+              </div>
+            )}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+              <div><label style={S.lbl}>{t.numSessions}</label><input type="number" value={pForm.total} onChange={e=>setPForm(f=>({...f,total:e.target.value}))} min={1} style={S.inp}/></div>
+              <div><label style={S.lbl}>{t.price} ({CUR(defCur).symbol})</label><input type="number" value={pForm.amount} onChange={e=>setPForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={S.inp}/></div>
+            </div>
+          </>
+        ):(
+          <>
+            <label style={S.lbl}>{t.activityName}</label>
+            <input value={pForm.name} onChange={e=>setPForm(f=>({...f,name:e.target.value}))} placeholder={lang==="he"?"פילאטיס, יוגה, שחייה...":"Pilates, Yoga, Swimming..."} style={S.inp}/>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
+              <div><label style={S.lbl}>{t.numLessons}</label><input type="number" value={pForm.total} onChange={e=>setPForm(f=>({...f,total:e.target.value}))} min={1} style={S.inp}/></div>
+              <div><label style={S.lbl}>{t.price} ({CUR(defCur).symbol})</label><input type="number" value={pForm.amount} onChange={e=>setPForm(f=>({...f,amount:e.target.value}))} placeholder="0" style={S.inp}/></div>
+            </div>
+            <label style={S.lbl}>{L.catWord}</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:14}}>
+              {categories.map(c=>(
+                <button key={c.id} onClick={()=>setPForm(f=>({...f,category:c.id}))} style={{padding:"7px 13px",borderRadius:13,border:`1px solid ${pForm.category===c.id?c.color:"#252535"}`,background:pForm.category===c.id?c.color+"33":"transparent",color:pForm.category===c.id?c.color:"#888",cursor:"pointer",fontSize:13,transition:"all .15s ease"}}>{c.emoji} {c.label}</button>
+              ))}
+            </div>
+          </>
+        )}
+        <div style={{display:"flex",gap:6}}>
+          {pEditing&&<button onClick={()=>{punchDel(pEditing);setPunchModal(false);setPEditing(null);}} style={{padding:"10px 12px",borderRadius:10,border:"1px solid #e05a5a33",background:"transparent",color:"#e05a5a",cursor:"pointer",fontSize:12,fontWeight:600}}>{t.delete}</button>}
+          <button onClick={()=>setPunchModal(false)} style={{flex:1,padding:"10px",borderRadius:10,border:"1px solid #252535",background:"transparent",color:"#666",cursor:"pointer"}}>{t.cancel}</button>
+          <button onClick={savePunch} style={{flex:2,padding:"10px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#5ab8e0,#8b5ae0)",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>{pEditing?t.saveChanges:t.createPunch}</button>
+        </div>
+      </div>
+    </div>
+  )}
+  {catModal&&(
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setCatModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"88vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <span style={{fontSize:14,fontWeight:700,color:"#f0ece4"}}>{L.catManage}</span>
+          <button onClick={()=>setCatModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:17}}>✕</button>
+        </div>
+        {categories.length===0?(
+          <div style={{textAlign:"center",color:"#3a3a4a",padding:"16px 0 20px",fontSize:11}}>{L.catEmpty}</div>
+        ):(
+          <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:18}}>
+            {categories.map(c=>(
+              <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px"}}>
+                <div style={{width:32,height:32,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{c.emoji}</div>
+                <span style={{flex:1,fontSize:13,color:"#ccc"}}>{c.label}</span>
+                <div style={{width:10,height:10,borderRadius:"50%",background:c.color}}/>
+                <button onClick={()=>deleteCategory(c.id)} style={{width:26,height:26,borderRadius:7,border:"1px solid #e05a5a22",background:"transparent",color:"#e05a5a66",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{borderTop:categories.length?"1px solid #1c1c28":"none",paddingTop:categories.length?16:0}}>
+          <div style={{fontSize:11,fontWeight:600,color:"#666",marginBottom:12}}>{L.catNew}</div>
+          <label style={S.lbl}>{t.name}</label>
+          <input value={nCat.label} onChange={e=>setNCat(f=>({...f,label:e.target.value}))} placeholder={L.catNamePh} style={S.inp}/>
+          <label style={S.lbl}>{t.emoji}</label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>
+            {EMOJIS.map(em=>(
+              <button key={em} onClick={()=>setNCat(f=>({...f,emoji:em}))} style={{width:30,height:30,borderRadius:7,border:`1px solid ${nCat.emoji===em?"#888":"#252535"}`,background:nCat.emoji===em?"#2a2a3a":"transparent",cursor:"pointer",fontSize:14}}>{em}</button>
+            ))}
+          </div>
+          <label style={S.lbl}>{t.color}</label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
+            {PALETTE.map(col=>(
+              <button key={col} onClick={()=>setNCat(f=>({...f,color:col}))} style={{width:26,height:26,borderRadius:"50%",background:col,border:`3px solid ${nCat.color===col?"#fff":"transparent"}`,cursor:"pointer"}}/>
+            ))}
+          </div>
+          {nCat.label&&(
+            <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:12,background:nCat.color+"33",border:`1px solid ${nCat.color}`,marginBottom:12}}>
+              <span>{nCat.emoji}</span><span style={{fontSize:12,color:nCat.color,fontWeight:600}}>{nCat.label}</span>
+            </div>
+          )}
+          <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>setCatModal(false)} style={{flex:1,padding:"9px",borderRadius:10,border:"1px solid #252535",background:"transparent",color:"#444",cursor:"pointer"}}>{t.close}</button>
+            <button onClick={addCategory} disabled={!nCat.label.trim()} style={{flex:2,padding:"9px",borderRadius:10,border:"none",background:nCat.label.trim()?"linear-gradient(135deg,#e05a5a,#8b5ae0)":"#252535",color:nCat.label.trim()?"#fff":"#444",cursor:"pointer",fontSize:13,fontWeight:600}}>{t.add}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+  {settingsModal&&(
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setSettingsModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+          <span style={{fontSize:14,fontWeight:700,color:"#f0ece4"}}>{t.settings}</span>
+          <button onClick={()=>setSettingsModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:17}}>✕</button>
+        </div>
+        <div style={{fontSize:11,fontWeight:600,color:"#666",marginBottom:10}}>{t.accountType}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:6}}>
+          <button onClick={()=>chooseUserType("private")} style={{padding:"14px",borderRadius:14,border:`1px solid ${!isBiz?"#e05a5a":"#252535"}`,background:!isBiz?"#e05a5a18":"#111118",color:"#e8e4dc",cursor:"pointer",textAlign:rtl?"right":"left",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:20}}>🙋</span><span style={{fontSize:13,fontWeight:700}}>{t.private}</span>
+          </button>
+          <button onClick={()=>chooseUserType("business")} style={{padding:"14px",borderRadius:14,border:`1px solid ${isBiz?"#8b5ae0":"#252535"}`,background:isBiz?"#8b5ae018":"#111118",color:"#e8e4dc",cursor:"pointer",textAlign:rtl?"right":"left",display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:20}}>💼</span><span style={{fontSize:13,fontWeight:700}}>{t.business}</span>
+          </button>
+        </div>
+        <div style={{fontSize:9,color:"#3a3a4a",marginBottom:16}}>{t.settingsNote}</div>
+        <div style={{fontSize:11,fontWeight:600,color:"#666",marginBottom:10}}>{t.language}</div>
+        <div style={{display:"flex",gap:8,marginBottom:18}}>
+          {[["he","עברית"],["en","English"]].map(([lg,lbl])=>(
+            <button key={lg} onClick={()=>changeLang(lg)} style={{flex:1,padding:"11px",borderRadius:12,border:`1px solid ${lang===lg?"#5ab8e0":"#252535"}`,background:lang===lg?"#5ab8e018":"#111118",color:lang===lg?"#5ab8e0":"#888",cursor:"pointer",fontSize:13,fontWeight:600}}>{lbl}</button>
+          ))}
+        </div>
+        <div style={{fontSize:11,fontWeight:600,color:"#666",marginBottom:10}}>{t.defaultCurrency}</div>
+        <div style={{display:"flex",gap:8,marginBottom:20}}>
+          {CURRENCIES.map(cu=>(
+            <button key={cu.id} onClick={()=>changeCur(cu.id)} style={{flex:1,padding:"11px",borderRadius:12,border:`1px solid ${defCur===cu.id?"#5ae09a":"#252535"}`,background:defCur===cu.id?"#5ae09a18":"#111118",color:defCur===cu.id?"#5ae09a":"#888",cursor:"pointer",fontSize:13,fontWeight:600}}>{cu.symbol} {cu.label[lang]}</button>
+          ))}
+        </div>
+        <button onClick={openTutorial} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid #252535",background:"#111118",color:"#aaa",cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📖 {t.tutorial}</button>
+        <button onClick={logout} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid #e05a5a33",background:"transparent",color:"#e05a5a",cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:10}}>{t.authLogout}</button>
+        <button onClick={()=>setSettingsModal(false)} style={{width:"100%",padding:"10px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600}}>{t.close}</button>
+      </div>
+    </div>
+  )}
+  {tutStep!==null&&(
+    <TutorialTour
+      steps={isBiz?t.tutBiz:t.tutPriv}
+      step={tutStep}
+      setStep={setTutStep}
+      onClose={closeTutorial}
+      setView={setView}
+      labels={{back:t.tutBack,skip:t.tutSkip,next:t.tutNext,done:t.tutDone}}
+      rtl={rtl}
+    />
+  )}
+</div>
+);
+}
+function Combo({value,onChange,categories,C,allLabel,placeholder,noneLabel}){
+const [open,setOpen]=useState(false);
+const [q,setQ]=useState("");
+const sel=value==="all"?null:C(value);
+const list=categories.filter(c=>c.label.toLowerCase().includes(q.toLowerCase()));
+return (
+<div style={{position:"relative",minWidth:150}}>
+  <button onClick={()=>{setOpen(o=>!o);setQ("");}} style={{...S.sel,width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:6}}>
+    <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sel?`${sel.emoji} ${sel.label}`:allLabel}</span>
+    <span style={{color:"#555",fontSize:9}}>▾</span>
+  </button>
+  {open&&(
+    <>
+      <div onClick={()=>setOpen(false)} style={{position:"fixed",inset:0,zIndex:140}}/>
+      <div style={{position:"absolute",top:"calc(100% + 4px)",right:0,left:0,background:"#161620",border:"1px solid #252535",borderRadius:10,padding:8,zIndex:150,boxShadow:"0 8px 24px #000a"}}>
+        <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder={placeholder} style={{...S.inp,marginBottom:6,padding:"8px 10px"}}/>
+        <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:3}}>
+          <div onClick={()=>{onChange("all");setOpen(false);}} style={{padding:"8px 10px",borderRadius:8,cursor:"pointer",fontSize:12,color:value==="all"?"#e8e4dc":"#888",background:value==="all"?"#1c1c28":"transparent"}}>{allLabel}</div>
+          {list.map(c=>(
+            <div key={c.id} onClick={()=>{onChange(c.id);setOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",borderRadius:8,cursor:"pointer",background:value===c.id?c.color+"22":"transparent"}}>
+              <span style={{fontSize:14}}>{c.emoji}</span><span style={{fontSize:12,color:value===c.id?c.color:"#ccc"}}>{c.label}</span>
+            </div>
+          ))}
+          {list.length===0&&<div style={{fontSize:11,color:"#444",padding:"6px 10px"}}>{noneLabel||"—"}</div>}
+        </div>
+      </div>
+    </>
+  )}
+</div>
+);
+}
+function AuthScreen({lang,setLang,t,rtl}){
+const [mode,setMode]=useState("login");   // login | signup
+const [email,setEmail]=useState("");
+const [pass,setPass]=useState("");
+const [busy,setBusy]=useState(false);
+const [msg,setMsg]=useState(null);
+const [ok,setOk]=useState(null);
+async function submit(){
+  setMsg(null); setOk(null);
+  if(pass.length<6){ setMsg(t.authPassShort); return; }
+  setBusy(true);
+  if(!sb){ setMsg("לא ניתן להתחבר לשרת. בדקו חיבור אינטרנט ונסו שוב."); setBusy(false); return; }
+  try{
+    if(mode==="signup"){
+      const {data,error}=await sb.auth.signUp({email:email.trim(),password:pass});
+      if(error){ setMsg(error.message.includes("already")?t.authBadCreds:error.message); }
+      else if(data.session){ /* מחובר מיד - onAuthStateChange יטפל */ }
+      else { setOk(t.authCheckEmail); setMode("login"); }
+    } else {
+      const {error}=await sb.auth.signInWithPassword({email:email.trim(),password:pass});
+      if(error){ setMsg(t.authBadCreds); }
+    }
+  }catch(e){ setMsg((e&&e.message?e.message:String(e))+" — "+t.authErr); }
+  setBusy(false);
+}
+return (
+<div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+  <div style={{position:"absolute",top:16,insetInlineEnd:16,display:"flex",gap:4}}>
+    {["he","en"].map(lg=>(
+      <button key={lg} onClick={()=>setLang(lg)} style={{padding:"7px 14px",borderRadius:11,border:`1px solid ${lang===lg?"#8b5ae0":"#252535"}`,background:lang===lg?"#8b5ae022":"transparent",color:lang===lg?"#8b5ae0":"#666",cursor:"pointer",fontSize:13}}>{lg==="he"?"עב":"EN"}</button>
+    ))}
+  </div>
+  <div style={{width:"min(360px,100%)",textAlign:"center"}}>
+    <div style={{width:56,height:56,borderRadius:14,background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,marginBottom:16,marginInline:"auto"}}>✦</div>
+    <div style={{fontSize:20,fontWeight:800,color:"#f0ece4",marginBottom:6}}>{t.authTitle}</div>
+    <div style={{fontSize:13,color:"#666",marginBottom:26}}>{mode==="login"?t.authLogin:t.authSignup}</div>
+    <input type="email" inputMode="email" autoCapitalize="none" value={email} onChange={e=>setEmail(e.target.value)} placeholder={t.authEmail} style={{display:"block",width:"100%",marginBottom:10,background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"13px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none",textAlign:rtl?"right":"left"}}/>
+    <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder={t.authPass} onKeyDown={e=>e.key==="Enter"&&submit()} style={{display:"block",width:"100%",marginBottom:14,background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"13px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none",textAlign:rtl?"right":"left"}}/>
+    {msg&&<div style={{fontSize:12,color:"#e05a5a",marginBottom:12}}>{msg}</div>}
+    {ok&&<div style={{fontSize:12,color:"#5ae09a",marginBottom:12,lineHeight:1.5}}>{ok}</div>}
+    <button onClick={submit} disabled={busy||!email||!pass} style={{width:"100%",padding:"13px",borderRadius:12,border:"none",background:(busy||!email||!pass)?"#252535":"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:(busy||!email||!pass)?"#555":"#fff",cursor:(busy||!email||!pass)?"default":"pointer",fontSize:15,fontWeight:700,marginBottom:16}}>{busy?t.authWait:(mode==="login"?t.authLoginBtn:t.authSignupBtn)}</button>
+    <button onClick={()=>{setMode(mode==="login"?"signup":"login");setMsg(null);setOk(null);}} style={{background:"none",border:"none",color:"#8b5ae0",cursor:"pointer",fontSize:13}}>{mode==="login"?t.authToSignup:t.authToLogin}</button>
+  </div>
+</div>
+);
+}
+function TutorialTour({steps,step,setStep,onClose,setView,labels,rtl}){
+const s=steps[step];
+const last=step===steps.length-1;
+const [rect,setRect]=useState(null);
+const cardRef=useRef(null);
+
+// ודא שהלשונית הנכונה פתוחה לפני מדידה
+useLayoutEffect(()=>{ if(s&&s.view) setView(s.view); },[step]);
+
+// מדוד את מיקום אלמנט המטרה (וגלול אליו אם צריך)
+useLayoutEffect(()=>{
+  let raf1,raf2;
+  function measure(){
+    const el=document.getElementById(s.target);
+    if(!el){ setRect(null); return; }
+    const r=el.getBoundingClientRect();
+    setRect({top:r.top,left:r.left,width:r.width,height:r.height});
+  }
+  // שתי פריימים: אחד שהתצוגה תתעדכן, אחד למדידה סופית
+  raf1=requestAnimationFrame(()=>{ raf2=requestAnimationFrame(measure); });
+  window.addEventListener("resize",measure);
+  window.addEventListener("scroll",measure,true);
+  return ()=>{ cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); window.removeEventListener("resize",measure); window.removeEventListener("scroll",measure,true); };
+},[step]);
+
+const pad=8;
+const vh=typeof window!=="undefined"?window.innerHeight:800;
+const vw=typeof window!=="undefined"?window.innerWidth:400;
+// החלט אם הכרטיס יופיע מתחת למטרה או מעליה
+const below=rect?(rect.top+rect.height+pad+180<vh):true;
+const cardTop=rect?(below?rect.top+rect.height+pad+6:Math.max(12,rect.top-pad-6-180)):0;
+
+return (
+<div style={{position:"fixed",inset:0,zIndex:400}}>
+  {/* רקע מתכהה — לחיצה עליו לא סוגרת, כדי לא לבלבל */}
+  <div style={{position:"absolute",inset:0,background:"#000a"}}/>
+  {/* טבעת זוהרת סביב אלמנט המטרה */}
+  {rect&&(
+    <div style={{position:"absolute",top:rect.top-6,left:rect.left-6,width:rect.width+12,height:rect.height+12,borderRadius:14,border:"2px solid #8b5ae0",boxShadow:"0 0 0 9999px #000a, 0 0 22px 4px #8b5ae0aa",pointerEvents:"none",transition:"all .25s ease"}}/>
+  )}
+  {/* כרטיס ההסבר */}
+  <div ref={cardRef} style={{position:"absolute",top:rect?cardTop:"50%",left:"50%",transform:rect?"translateX(-50%)":"translate(-50%,-50%)",width:"min(330px,calc(100vw - 32px))",background:"#161620",border:"1px solid #2a2a3a",borderRadius:18,padding:"18px 18px 16px",boxShadow:"0 12px 40px #000c",transition:"top .25s ease"}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+      <div style={{fontSize:26}}>{s.emoji}</div>
+      <div style={{fontSize:16,fontWeight:800,color:"#f0ece4"}}>{s.title}</div>
+    </div>
+    <div style={{fontSize:13,color:"#aaa",lineHeight:1.6,marginBottom:16}}>{s.body}</div>
+    <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:14}}>
+      {steps.map((_,i)=>(
+        <div key={i} style={{width:i===step?20:6,height:6,borderRadius:3,background:i===step?"#8b5ae0":"#2a2a3a",transition:"all .25s ease"}}/>
+      ))}
+    </div>
+    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+      {step>0
+        ? <button onClick={()=>setStep(step-1)} style={{padding:"11px 16px",borderRadius:11,border:"1px solid #252535",background:"transparent",color:"#888",cursor:"pointer",fontSize:13}}>{labels.back}</button>
+        : <button onClick={onClose} style={{padding:"11px 16px",borderRadius:11,border:"none",background:"transparent",color:"#555",cursor:"pointer",fontSize:13}}>{labels.skip}</button>}
+      <button onClick={()=>last?onClose():setStep(step+1)} style={{flex:1,padding:"11px",borderRadius:11,border:"none",background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:700}}>{last?labels.done:labels.next}</button>
+    </div>
+  </div>
+</div>
+);
+}
+function EvRow({ev,cat,onEdit,onPay,onDelete,showAmt,days,months,payLabel}){
+const d=new Date(ev.date),c=cat(ev.category),status=ev.payment,col=PAYCOLOR[status]||PAYCOLOR.none,label=(payLabel||{})[status]||"";
+return (
+<div style={{background:"#111118",border:"1px solid #1c1c28",borderRadius:12,padding:"11px 13px",display:"flex",alignItems:"center",gap:11}}>
+<div onClick={()=>onEdit(ev)} style={{width:38,height:38,borderRadius:10,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0,cursor:"pointer"}}>{c.emoji}</div>
+<div onClick={()=>onEdit(ev)} style={{flex:1,minWidth:0,cursor:"pointer"}}>
+<div style={{fontSize:13,fontWeight:600,color:"#ddd",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+{ev.recurGroupId&&<span style={{color:"#5ae09a",fontSize:9,marginInlineEnd:3}}>↻</span>}
+{ev.title}
+</div>
+<div style={{fontSize:10,color:"#444",marginTop:2}}>{days[d.getDay()]} {d.getDate()} {months[d.getMonth()]} · {ev.time}</div>
+</div>
+{ev.payment!=="none"&&(
+<div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,flexShrink:0}}>
+{showAmt&&ev.amount&&<div style={{fontSize:12,fontWeight:700,color:"#ddd"}}>{money(ev.amount,ev.currency)}</div>}
+<button onClick={e=>{e.stopPropagation();onPay(ev.id,e);}} style={{padding:"5px 12px",borderRadius:9,border:`1px solid ${col}44`,background:col+"22",color:col,cursor:"pointer",fontSize:12,fontWeight:600}}>{label}</button>
+</div>
+)}
+<button onClick={e=>{e.stopPropagation();onDelete(ev.id);}} style={{width:32,height:32,borderRadius:9,border:"1px solid #e05a5a22",background:"transparent",color:"#e05a5a55",cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>🗑</button>
+</div>
+);
+}
+function SumCard({label,amount,color,emoji,sym}){
+return (
+<div style={{background:"#111118",border:`1px solid ${color}22`,borderRadius:14,padding:"15px 8px",textAlign:"center"}}>
+<div style={{fontSize:19}}>{emoji}</div>
+<div style={{fontSize:18,fontWeight:800,color,margin:"5px 0 3px"}}>{sym||"₪"}{amount.toLocaleString()}</div>
+<div style={{fontSize:9,color:"#444"}}>{label}</div>
+</div>
+);
+}
+function Empty({txt}){ return <div style={{textAlign:"center",color:"#3a3a4a",padding:"32px 0",fontSize:12}}>{txt}</div>; }
+const S={
+navBtn:{padding:"8px 15px",borderRadius:12,border:"none",background:"#1c1c28",color:"#888",cursor:"pointer",fontSize:14,minWidth:40,transition:"all .15s ease"},
+addBtn:{padding:"10px 18px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:600,transition:"all .15s ease"},
+sel:{padding:"9px 13px",borderRadius:12,border:"1px solid #252535",background:"#161620",color:"#aaa",cursor:"pointer",fontSize:13,outline:"none"},
+chip:{padding:"8px 14px",borderRadius:13,border:"1px solid #252535",background:"transparent",color:"#888",cursor:"pointer",fontSize:13,transition:"all .15s ease"},
+lbl:{display:"block",fontSize:11,color:"#666",marginBottom:6},
+inp:{display:"block",width:"100%",marginBottom:10,background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"12px 13px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none"},
+circBtn:{width:32,height:32,borderRadius:9,border:"1px solid #252535",background:"transparent",cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"},
+};
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
