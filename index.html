@@ -63,7 +63,7 @@ he:{
   tutorial:"הדרכה", tutSkip:"דלג", tutNext:"הבא", tutBack:"הקודם", tutStart:"בואו נתחיל", tutDone:"סיום",
   authTitle:"לוח שנה ותשלומים", authLogin:"התחברות", authSignup:"הרשמה", authEmail:"אימייל", authPass:"סיסמה",
   authLoginBtn:"התחבר", authSignupBtn:"הרשמה", authToSignup:"אין לך חשבון? הירשם", authToLogin:"כבר יש לך חשבון? התחבר",
-  authWait:"רגע...", authErr:"שגיאה. בדקו את הפרטים ונסו שוב.", authBadCreds:"אימייל או סיסמה שגויים.", authPassShort:"הסיסמה חייבת לפחות 6 תווים.", authLogout:"התנתקות", authCheckEmail:"נשלח אליך אימייל אימות. אשרו אותו ואז התחברו.",
+  authWait:"רגע...", authErr:"שגיאה. בדקו את הפרטים ונסו שוב.", authBadCreds:"אימייל או סיסמה שגויים.", authPassShort:"הסיסמה חייבת לפחות 6 תווים.", authLogout:"התנתקות", authCheckEmail:"נשלח אליך אימייל אימות. אשרו אותו ואז התחברו.", authForgot:"שכחת סיסמה?", authReset:"איפוס סיסמה", authResetSub:"הזן את האימייל שלך ונשלח לך קישור לאיפוס הסיסמה.", authResetBtn:"שלח קישור איפוס", authResetSent:"אם האימייל קיים במערכת, נשלח אליו קישור לאיפוס. בדקו גם בספאם.", authBackToLogin:"חזרה להתחברות", authNewPass:"סיסמה חדשה", authUpdatePass:"עדכן סיסמה", authPassUpdated:"הסיסמה עודכנה בהצלחה! אפשר להתחבר.",
   tutPriv:[
     {target:"tut-calmode",view:"cal",emoji:"📅",title:"תצוגת היומן",body:"כאן עוברים בין תצוגת שבוע לתצוגת חודש. לחיצה על יום בלוח פותחת אירוע חדש באותו תאריך."},
     {target:"tut-add",view:"cal",emoji:"➕",title:"הוספת אירוע",body:"הכפתור הזה פותח אירוע חדש. בפעם הראשונה הוא יבקש ליצור קטגוריה — כל אירוע משויך לקטגוריה עם צבע ואימוג'י משלה."},
@@ -105,7 +105,7 @@ en:{
   tutorial:"Tutorial", tutSkip:"Skip", tutNext:"Next", tutBack:"Back", tutStart:"Let's start", tutDone:"Done",
   authTitle:"Calendar & Payments", authLogin:"Log in", authSignup:"Sign up", authEmail:"Email", authPass:"Password",
   authLoginBtn:"Log in", authSignupBtn:"Sign up", authToSignup:"No account? Sign up", authToLogin:"Already have an account? Log in",
-  authWait:"One moment...", authErr:"Something went wrong. Check details and try again.", authBadCreds:"Wrong email or password.", authPassShort:"Password must be at least 6 characters.", authLogout:"Log out", authCheckEmail:"A confirmation email was sent. Confirm it, then log in.",
+  authWait:"One moment...", authErr:"Something went wrong. Check details and try again.", authBadCreds:"Wrong email or password.", authPassShort:"Password must be at least 6 characters.", authLogout:"Log out", authCheckEmail:"A confirmation email was sent. Confirm it, then log in.", authForgot:"Forgot password?", authReset:"Reset password", authResetSub:"Enter your email and we'll send you a reset link.", authResetBtn:"Send reset link", authResetSent:"If the email exists, a reset link was sent. Check spam too.", authBackToLogin:"Back to login", authNewPass:"New password", authUpdatePass:"Update password", authPassUpdated:"Password updated! You can log in now.",
   tutPriv:[
     {target:"tut-calmode",view:"cal",emoji:"📅",title:"Calendar view",body:"Switch between week and month view here. Tapping a day on the grid opens a new event on that date."},
     {target:"tut-add",view:"cal",emoji:"➕",title:"Add an event",body:"This button opens a new event. The first time, it'll ask you to create a category — every event belongs to a category with its own color and emoji."},
@@ -138,6 +138,7 @@ let _cats=[];
 const EMPTY_EV={title:"",date:today(),time:"09:00",category:"",payment:"none",amount:"",notes:"",recur:"none",currency:"ILS",evMode:"client"};
 function App(){
 const [session,setSession]=useState(undefined);   // undefined=טוען, null=לא מחובר, object=מחובר
+const [recovery,setRecovery]=useState(false);      // true כשהמשתמש הגיע מקישור איפוס סיסמה
 const [loading,setLoading]=useState(true);
 const [userType,setUserType]=useState(null);
 const [lang,setLang]=useState("he");
@@ -156,7 +157,7 @@ useEffect(()=>{ document.documentElement.lang=lang; document.documentElement.dir
 // ---- אתחול: מעקב אחר מצב התחברות ----
 useEffect(()=>{
   sb.auth.getSession().then(({data})=>{ setSession(data.session||null); });
-  const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>{ setSession(s||null); });
+  const {data:sub}=sb.auth.onAuthStateChange((_e,s)=>{ if(_e==="PASSWORD_RECOVERY"){ setRecovery(true); } setSession(s||null); });
   return ()=>{ sub.subscription.unsubscribe(); };
 },[]);
 
@@ -312,6 +313,10 @@ const PayBar=()=>(
 const showOnboarding = !tutSeen && !pickedType;
 if(session===undefined||(session&&loading)){
   return <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{width:40,height:40,borderRadius:12,background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,animation:"none"}}>✦</div></div>;
+}
+// הגיע מקישור איפוס סיסמה → מסך הזנת סיסמה חדשה
+if(recovery){
+  return <ResetPasswordScreen t={t} rtl={rtl} onDone={()=>{ setRecovery(false); }}/>;
 }
 // לא מחובר → מסך הרשמה/כניסה
 if(!session){
@@ -584,9 +589,9 @@ return (
             </div>
           </>
         )}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}}>
-          <div><label style={S.lbl}>{t.date}</label><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={S.inp}/></div>
-          <div><label style={S.lbl}>{t.time}</label><input type="time" value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))} style={S.inp}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:10}}>
+          <div style={{minWidth:0}}><label style={S.lbl}>{t.date}</label><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={S.dt}/></div>
+          <div style={{minWidth:0}}><label style={S.lbl}>{t.time}</label><input type="time" value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))} style={S.dt}/></div>
         </div>
         {!isBiz&&<>
         <label style={S.lbl}>{t.category}</label>
@@ -839,22 +844,25 @@ return (
 );
 }
 function AuthScreen({lang,setLang,t,rtl}){
-const [mode,setMode]=useState("login");   // login | signup
+const [mode,setMode]=useState("login");   // login | signup | reset
 const [email,setEmail]=useState("");
 const [pass,setPass]=useState("");
 const [busy,setBusy]=useState(false);
 const [msg,setMsg]=useState(null);
 const [ok,setOk]=useState(null);
+const inpStyle={display:"block",width:"100%",marginBottom:10,background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"13px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none",textAlign:rtl?"right":"left"};
+function clearMsgs(){ setMsg(null); setOk(null); }
 async function submit(){
-  setMsg(null); setOk(null);
+  clearMsgs();
+  if(!sb){ setMsg(lang==="he"?"לא ניתן להתחבר לשרת. בדקו חיבור אינטרנט ונסו שוב.":"Can't reach the server. Check your connection."); return; }
+  if(mode==="reset"){ return submitReset(); }
   if(pass.length<6){ setMsg(t.authPassShort); return; }
   setBusy(true);
-  if(!sb){ setMsg("לא ניתן להתחבר לשרת. בדקו חיבור אינטרנט ונסו שוב."); setBusy(false); return; }
   try{
     if(mode==="signup"){
       const {data,error}=await sb.auth.signUp({email:email.trim(),password:pass});
       if(error){ setMsg(error.message.includes("already")?t.authBadCreds:error.message); }
-      else if(data.session){ /* מחובר מיד - onAuthStateChange יטפל */ }
+      else if(data.session){ /* מחובר מיד */ }
       else { setOk(t.authCheckEmail); setMode("login"); }
     } else {
       const {error}=await sb.auth.signInWithPassword({email:email.trim(),password:pass});
@@ -863,6 +871,17 @@ async function submit(){
   }catch(e){ setMsg((e&&e.message?e.message:String(e))+" — "+t.authErr); }
   setBusy(false);
 }
+async function submitReset(){
+  if(!email.trim()){ setMsg(t.authErr); return; }
+  setBusy(true);
+  try{
+    const {error}=await sb.auth.resetPasswordForEmail(email.trim(),{redirectTo:window.location.href.split("#")[0].split("?")[0]});
+    if(error){ setMsg(error.message); }
+    else { setOk(t.authResetSent); }
+  }catch(e){ setMsg((e&&e.message?e.message:String(e))); }
+  setBusy(false);
+}
+const titleSub = mode==="login"?t.authLogin : mode==="signup"?t.authSignup : t.authReset;
 return (
 <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
   <div style={{position:"absolute",top:16,insetInlineEnd:16,display:"flex",gap:4}}>
@@ -873,13 +892,62 @@ return (
   <div style={{width:"min(360px,100%)",textAlign:"center"}}>
     <div style={{width:56,height:56,borderRadius:14,background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,marginBottom:16,marginInline:"auto"}}>✦</div>
     <div style={{fontSize:20,fontWeight:800,color:"#f0ece4",marginBottom:6}}>{t.authTitle}</div>
-    <div style={{fontSize:13,color:"#666",marginBottom:26}}>{mode==="login"?t.authLogin:t.authSignup}</div>
-    <input type="email" inputMode="email" autoCapitalize="none" value={email} onChange={e=>setEmail(e.target.value)} placeholder={t.authEmail} style={{display:"block",width:"100%",marginBottom:10,background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"13px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none",textAlign:rtl?"right":"left"}}/>
-    <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder={t.authPass} onKeyDown={e=>e.key==="Enter"&&submit()} style={{display:"block",width:"100%",marginBottom:14,background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"13px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none",textAlign:rtl?"right":"left"}}/>
+    <div style={{fontSize:13,color:"#666",marginBottom:mode==="reset"?16:26}}>{titleSub}</div>
+    {mode==="reset"&&<div style={{fontSize:12,color:"#888",marginBottom:18,lineHeight:1.5}}>{t.authResetSub}</div>}
+    <input type="email" inputMode="email" autoCapitalize="none" value={email} onChange={e=>setEmail(e.target.value)} placeholder={t.authEmail} style={inpStyle}/>
+    {mode!=="reset"&&(
+      <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder={t.authPass} onKeyDown={e=>e.key==="Enter"&&submit()} style={{...inpStyle,marginBottom:14}}/>
+    )}
     {msg&&<div style={{fontSize:12,color:"#e05a5a",marginBottom:12}}>{msg}</div>}
     {ok&&<div style={{fontSize:12,color:"#5ae09a",marginBottom:12,lineHeight:1.5}}>{ok}</div>}
-    <button onClick={submit} disabled={busy||!email||!pass} style={{width:"100%",padding:"13px",borderRadius:12,border:"none",background:(busy||!email||!pass)?"#252535":"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:(busy||!email||!pass)?"#555":"#fff",cursor:(busy||!email||!pass)?"default":"pointer",fontSize:15,fontWeight:700,marginBottom:16}}>{busy?t.authWait:(mode==="login"?t.authLoginBtn:t.authSignupBtn)}</button>
-    <button onClick={()=>{setMode(mode==="login"?"signup":"login");setMsg(null);setOk(null);}} style={{background:"none",border:"none",color:"#8b5ae0",cursor:"pointer",fontSize:13}}>{mode==="login"?t.authToSignup:t.authToLogin}</button>
+    <button onClick={submit} disabled={busy||!email||(mode!=="reset"&&!pass)} style={{width:"100%",padding:"13px",borderRadius:12,border:"none",background:(busy||!email||(mode!=="reset"&&!pass))?"#252535":"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:(busy||!email||(mode!=="reset"&&!pass))?"#555":"#fff",cursor:(busy||!email||(mode!=="reset"&&!pass))?"default":"pointer",fontSize:15,fontWeight:700,marginBottom:14}}>{busy?t.authWait:(mode==="login"?t.authLoginBtn:mode==="signup"?t.authSignupBtn:t.authResetBtn)}</button>
+    {mode==="login"&&(
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:2}}>
+        <button onClick={()=>{setMode("reset");clearMsgs();}} style={{background:"none",border:"none",color:"#888",cursor:"pointer",fontSize:13}}>{t.authForgot}</button>
+        <button onClick={()=>{setMode("signup");clearMsgs();}} style={{background:"none",border:"none",color:"#8b5ae0",cursor:"pointer",fontSize:13}}>{t.authToSignup}</button>
+      </div>
+    )}
+    {mode==="signup"&&(
+      <button onClick={()=>{setMode("login");clearMsgs();}} style={{background:"none",border:"none",color:"#8b5ae0",cursor:"pointer",fontSize:13}}>{t.authToLogin}</button>
+    )}
+    {mode==="reset"&&(
+      <button onClick={()=>{setMode("login");clearMsgs();}} style={{background:"none",border:"none",color:"#8b5ae0",cursor:"pointer",fontSize:13}}>{t.authBackToLogin}</button>
+    )}
+  </div>
+</div>
+);
+}
+function ResetPasswordScreen({t,rtl,onDone}){
+const [pass,setPass]=useState("");
+const [busy,setBusy]=useState(false);
+const [msg,setMsg]=useState(null);
+const [ok,setOk]=useState(false);
+async function submit(){
+  setMsg(null);
+  if(pass.length<6){ setMsg(t.authPassShort); return; }
+  setBusy(true);
+  try{
+    const {error}=await sb.auth.updateUser({password:pass});
+    if(error){ setMsg(error.message); }
+    else { setOk(true); setTimeout(()=>onDone&&onDone(),1500); }
+  }catch(e){ setMsg(e&&e.message?e.message:String(e)); }
+  setBusy(false);
+}
+const inpStyle={display:"block",width:"100%",marginBottom:14,background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"13px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none",textAlign:rtl?"right":"left"};
+return (
+<div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24}}>
+  <div style={{width:"min(360px,100%)",textAlign:"center"}}>
+    <div style={{width:56,height:56,borderRadius:14,background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,marginBottom:16,marginInline:"auto"}}>✦</div>
+    <div style={{fontSize:20,fontWeight:800,color:"#f0ece4",marginBottom:20}}>{t.authReset}</div>
+    {ok?(
+      <div style={{fontSize:14,color:"#5ae09a",lineHeight:1.6}}>{t.authPassUpdated}</div>
+    ):(
+      <>
+        <input type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder={t.authNewPass} onKeyDown={e=>e.key==="Enter"&&submit()} style={inpStyle}/>
+        {msg&&<div style={{fontSize:12,color:"#e05a5a",marginBottom:12}}>{msg}</div>}
+        <button onClick={submit} disabled={busy||!pass} style={{width:"100%",padding:"13px",borderRadius:12,border:"none",background:(busy||!pass)?"#252535":"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:(busy||!pass)?"#555":"#fff",cursor:(busy||!pass)?"default":"pointer",fontSize:15,fontWeight:700}}>{busy?t.authWait:t.authUpdatePass}</button>
+      </>
+    )}
   </div>
 </div>
 );
@@ -985,6 +1053,7 @@ sel:{padding:"9px 13px",borderRadius:12,border:"1px solid #252535",background:"#
 chip:{padding:"8px 14px",borderRadius:13,border:"1px solid #252535",background:"transparent",color:"#888",cursor:"pointer",fontSize:13,transition:"all .15s ease"},
 lbl:{display:"block",fontSize:11,color:"#666",marginBottom:6},
 inp:{display:"block",width:"100%",marginBottom:10,background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"12px 13px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none"},
+dt:{display:"block",width:"100%",background:"#0d0d12",border:"1px solid #252535",borderRadius:10,padding:"12px 10px",color:"#e8e4dc",fontSize:14,boxSizing:"border-box",outline:"none",direction:"ltr",textAlign:"center",minWidth:0,height:46,WebkitAppearance:"none",appearance:"none"},
 circBtn:{width:32,height:32,borderRadius:9,border:"1px solid #252535",background:"transparent",cursor:"pointer",fontSize:14,display:"flex",alignItems:"center",justifyContent:"center"},
 };
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
