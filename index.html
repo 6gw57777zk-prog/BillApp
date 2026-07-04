@@ -312,7 +312,7 @@ const personalCats=categories.filter(c=>c.kind==="personal");
 function getSuggest(val){ if(!val||val.length<2) return null; const lo=val.toLowerCase(); const hits=events.filter(e=>e.title.toLowerCase().includes(lo)); return hits.length?hits.sort((a,b)=>b.date.localeCompare(a.date))[0]:null; }
 function openNew(date){ setEditing(null); setForm({...EMPTY_EV,date:date||today(),category:"",evMode:isBiz?"client":"personal",currency:defCur}); setSuggest(null); setCustSearch(""); setModal(true); }
 function openEdit(ev){ const m=ev.category&&personalCats.find(c=>c.id===ev.category)?"personal":(isBiz?"client":"personal"); setEditing(ev.id); setForm({...EMPTY_EV,...ev,evMode:m,currency:ev.currency||"ILS"}); setSuggest(null); setCustSearch(""); setModal(true); }
-async function pickCustomer(c){ setForm(f=>({...f,category:c.id,title:c.label})); setCustSearch(""); }
+async function pickCustomer(c){ setForm(f=>({...f,category:c.id,title:c.label,amount:(f.amount===""||f.amount==null)&&c.sessionPrice>0?String(c.sessionPrice):f.amount})); setCustSearch(""); }
 async function createClientInline(name){ const cat=await quickCreateCategory(name,"client"); if(cat){ setForm(f=>({...f,category:cat.id,title:cat.label})); setCustSearch(""); } }
 async function saveEvent(){ if(!form.title.trim()||!uid) return;
   if(editing){
@@ -338,6 +338,15 @@ async function saveEvent(){ if(!form.title.trim()||!uid) return;
       const {data,error}=await sb.from("events").insert(baseRow).select().single();
       if(error){ console.error(error); return; }
       setEvents(es=>[...es,dbToEvent(data)]);
+      // --- ניהול קרדיט: אם הוזן סכום גדול ממחיר הפגישה של הלקוח, העודף נשמר כקרדיט ---
+      const cat=categories.find(c=>c.id===form.category);
+      const amt=Number(form.amount)||0;
+      if(cat && cat.sessionPrice>0 && amt>cat.sessionPrice && form.payment!=="none"){
+        const overflow=amt-cat.sessionPrice;
+        const newCredit=(cat.credit||0)+overflow;
+        await sb.from("categories").update({credit_balance:newCredit}).eq("id",cat.id);
+        setCategories(cs=>cs.map(c=>c.id===cat.id?{...c,credit:newCredit}:c));
+      }
     }
     // הערה: ניקוב כרטיסייה וזיכוי קרדיט קורים כשהאירוע מתרחש (reconcileOccurred), לא בעת היצירה
   }
