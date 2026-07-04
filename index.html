@@ -286,6 +286,7 @@ const [modal,setModal]=useState(false);
 const [punchModal,setPunchModal]=useState(false);
 const [catModal,setCatModal]=useState(false);
 const [catModalKind,setCatModalKind]=useState(null);
+const [catEdit,setCatEdit]=useState(null);   // {id, price} - עריכת מחיר פגישה של לקוח קיים
 const [editing,setEditing]=useState(null);
 const [form,setForm]=useState(EMPTY_EV);
 const [pForm,setPForm]=useState({name:"",total:10,category:"",amount:""});
@@ -302,6 +303,7 @@ useEffect(()=>{ _cats=categories; },[categories]);
 const C=id=>categories.find(c=>c.id===id)||{id:"?",label:"?",color:"#555",emoji:"📌"};
 async function addCategory(kind){ if(!nCat.label.trim()||!uid) return; const k=kind||(isBiz?"client":"personal"); const price=k==="client"?(Number(nCat.price)||0):0; const payload={user_id:uid,label:nCat.label.trim(),emoji:nCat.emoji,color:nCat.color,kind:k,session_price:price}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return; } setCategories(cs=>[...cs,{id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||k,sessionPrice:Number(data.session_price||0),credit:0}]); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); }
 // יצירה מהירה של קטגוריה/לקוח מתוך טופס האירוע (מחזיר את הרשומה החדשה)
+async function saveClientPrice(id,price){ const p=Number(price)||0; const {error}=await sb.from("categories").update({session_price:p}).eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.map(c=>c.id===id?{...c,sessionPrice:p}:c)); setCatEdit(null); }
 async function quickCreateCategory(label,kind){ if(!label.trim()||!uid) return null; const color=PALETTE[Math.floor(Math.random()*PALETTE.length)]; const emoji=kind==="client"?"🧑":"⭐"; const payload={user_id:uid,label:label.trim(),emoji,color,kind,session_price:0}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return null; } const cat={id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||kind,sessionPrice:0,credit:0}; setCategories(cs=>[...cs,cat]); return cat; }
 async function deleteCategory(id){ const {error}=await sb.from("categories").delete().eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.filter(c=>c.id!==id)); }
 // קטגוריות מסוננות לפי סוג (ללקוח/אישי)
@@ -341,7 +343,16 @@ async function saveEvent(){ if(!form.title.trim()||!uid) return;
   }
   setModal(false);
 }
-async function deleteEvent(id){ const {error}=await sb.from("events").delete().eq("id",id); if(error){ console.error(error); return; } setEvents(es=>es.filter(e=>e.id!==id)); setDeleteConfirm(null); setModal(false); }
+async function deleteEvent(id){
+  const ev=events.find(e=>e.id===id);
+  // אם האירוע כבר נוקב בכרטיסייה (התרחש) — נבטל ניקוב אחד
+  if(ev && ev.applied){
+    const ap=punches.find(p=>p.category===ev.category&&(p.used||0)>0);
+    if(ap){ const nu=Math.max((ap.used||0)-1,0); await sb.from("punch_cards").update({used:nu}).eq("id",ap.id); setPunches(ps=>ps.map(p=>p.id===ap.id?{...p,used:nu}:p)); }
+  }
+  const {error}=await sb.from("events").delete().eq("id",id); if(error){ console.error(error); return; }
+  setEvents(es=>es.filter(e=>e.id!==id)); setDeleteConfirm(null); setModal(false);
+}
 async function togglePay(id,e){ e&&e.stopPropagation(); const ev=events.find(x=>x.id===id); if(!ev) return; const nxt=ev.payment==="pending"?"paid":ev.payment==="paid"?"pending":ev.payment; if(nxt===ev.payment) return; setEvents(es=>es.map(x=>x.id===id?{...x,payment:nxt}:x)); const {error}=await sb.from("events").update({payment:nxt}).eq("id",id); if(error){ console.error(error); setEvents(es=>es.map(x=>x.id===id?{...x,payment:ev.payment}:x)); } }
 function openNewPunch(){ setPEditing(null); setPForm({name:"",total:10,category:isBiz?"":(categories[0]?.id||""),amount:""}); setPSearch(""); setPunchModal(true); }
 function openEditPunch(pc){ setPEditing(pc.id); setPForm({name:pc.name,total:pc.total,category:pc.category,amount:pc.amount||""}); setPSearch(""); setPunchModal(true); }
@@ -584,8 +595,8 @@ return (
     </div>
   )}
   {dayModal&&(
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setDayModal(null)}>
-      <div style={{background:TH.panel2,border:`1px solid ${TH.border}`,borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"85vh",overflowY:"auto"}}>
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>e.target===e.currentTarget&&setDayModal(null)}>
+      <div style={{background:TH.panel2,border:`1px solid ${TH.border}`,borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"85dvh",overflowY:"auto",paddingBottom:"calc(28px + env(safe-area-inset-bottom))",WebkitOverflowScrolling:"touch"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <span style={{fontSize:17,fontWeight:700,color:TH.text}}>{(()=>{const d=new Date(dayModal);return `${DAYS_HE[d.getDay()]}, ${d.getDate()} ${MONTHS_HE[d.getMonth()]}`;})()}</span>
           <button onClick={()=>setDayModal(null)} style={{background:"none",border:"none",color:TH.textFaint,cursor:"pointer",fontSize:20}}>✕</button>
@@ -615,8 +626,8 @@ return (
     </div>
   )}
   {modal&&(
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setModal(false)}>
-      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"92vh",overflowY:"auto"}}>
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"85dvh",overflowY:"auto",paddingBottom:"calc(28px + env(safe-area-inset-bottom))",WebkitOverflowScrolling:"touch"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
           <span style={{fontSize:16,fontWeight:700,color:"#f0ece4"}}>{editing?t.editEvent:t.newEvent}</span>
           <button onClick={()=>setModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:18}}>✕</button>
@@ -744,8 +755,8 @@ return (
     </div>
   )}
   {punchModal&&(
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setPunchModal(false)}>
-      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"92vh",overflowY:"auto"}}>
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>e.target===e.currentTarget&&setPunchModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"85dvh",overflowY:"auto",paddingBottom:"calc(28px + env(safe-area-inset-bottom))",WebkitOverflowScrolling:"touch"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
           <span style={{fontSize:16,fontWeight:700,color:"#f0ece4"}}>{pEditing?t.editPunch:t.newPunch}</span>
           <button onClick={()=>setPunchModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:18}}>✕</button>
@@ -807,8 +818,8 @@ return (
     </div>
   )}
   {catModal&&(
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setCatModal(false)}>
-      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"88vh",overflowY:"auto"}}>
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>e.target===e.currentTarget&&setCatModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"85dvh",overflowY:"auto",paddingBottom:"calc(28px + env(safe-area-inset-bottom))",WebkitOverflowScrolling:"touch"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <span style={{fontSize:16,fontWeight:700,color:"#f0ece4"}}>{L.catManage}</span>
           <button onClick={()=>setCatModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:18}}>✕</button>
@@ -820,11 +831,22 @@ return (
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:18}}>
             {catModalList.map(c=>(
-              <div key={c.id} style={{display:"flex",alignItems:"center",gap:10,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px"}}>
-                <div style={{width:32,height:32,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>{c.emoji}</div>
-                <span style={{flex:1,fontSize:15,color:"#ccc"}}>{c.label}</span>
-                <div style={{width:10,height:10,borderRadius:"50%",background:c.color}}/>
-                <button onClick={()=>deleteCategory(c.id)} style={{width:26,height:26,borderRadius:7,border:"1px solid #e05a5a22",background:"transparent",color:"#e05a5a66",cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+              <div key={c.id} style={{display:"flex",flexDirection:"column",gap:8,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:10,padding:"9px 12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:32,height:32,borderRadius:8,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:17}}>{c.emoji}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:15,color:"#ccc"}}>{c.label}</div>
+                    {catModalKind!=="personal"&&(c.sessionPrice>0||c.credit>0)&&<div style={{fontSize:11,color:"#666",marginTop:2}}>{c.sessionPrice>0?`₪${c.sessionPrice} ${lang==="he"?"לפגישה":"/session"}`:""}{c.credit>0?` · ${t.clientCredit}: ₪${c.credit}`:""}</div>}
+                  </div>
+                  {catModalKind!=="personal"&&<button onClick={()=>setCatEdit(catEdit&&catEdit.id===c.id?null:{id:c.id,price:String(c.sessionPrice||"")})} style={{width:26,height:26,borderRadius:7,border:"1px solid #8b5ae044",background:"transparent",color:"#8b5ae0",cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✎</button>}
+                  <button onClick={()=>deleteCategory(c.id)} style={{width:26,height:26,borderRadius:7,border:"1px solid #e05a5a22",background:"transparent",color:"#e05a5a66",cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                </div>
+                {catEdit&&catEdit.id===c.id&&(
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <input type="number" inputMode="numeric" value={catEdit.price} onChange={e=>setCatEdit({id:c.id,price:e.target.value})} placeholder={t.sessionPricePh} style={{...S.inp,marginBottom:0,direction:"ltr",textAlign:"center",flex:1}}/>
+                    <button onClick={()=>saveClientPrice(c.id,catEdit.price)} style={{padding:"11px 16px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:"#fff",cursor:"pointer",fontSize:14,fontWeight:600,whiteSpace:"nowrap"}}>{t.save||"שמור"}</button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -865,8 +887,8 @@ return (
     </div>
   )}
   {settingsModal&&(
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setSettingsModal(false)}>
-      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)"}}>
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>e.target===e.currentTarget&&setSettingsModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"20px 18px 28px",width:"min(480px,100vw)",maxHeight:"85dvh",overflowY:"auto",paddingBottom:"calc(28px + env(safe-area-inset-bottom))",WebkitOverflowScrolling:"touch"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <span style={{fontSize:16,fontWeight:700,color:"#f0ece4"}}>{t.settings}</span>
           <button onClick={()=>setSettingsModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:18}}>✕</button>
@@ -907,8 +929,8 @@ return (
     </div>
   )}
   {waModal&&(
-    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setWaModal(false)}>
-      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"22px 18px 30px",width:"min(480px,100vw)",maxHeight:"90vh",overflowY:"auto"}}>
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",overflowY:"auto",WebkitOverflowScrolling:"touch"}} onClick={e=>e.target===e.currentTarget&&setWaModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"22px 18px 30px",width:"min(480px,100vw)",maxHeight:"85dvh",overflowY:"auto",paddingBottom:"calc(28px + env(safe-area-inset-bottom))",WebkitOverflowScrolling:"touch"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <span style={{fontSize:17,fontWeight:700,color:"#f0ece4"}}>💬 {t.waTitle}</span>
           <button onClick={()=>setWaModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:20}}>✕</button>
