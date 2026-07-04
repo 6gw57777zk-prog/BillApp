@@ -34,6 +34,7 @@ let TH = {
   bg:"#0d0d12", panel:"#111118", panel2:"#161620", border:"#252535", border2:"#1c1c28",
   text:"#e8e4dc", textDim:"#888", textFaint:"#555", inputBg:"#0d0d12", cardBg:"#111118", todayBg:"#181826"
 };
+let S = {};
 const DAYS={he:["ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"],en:["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]};
 const MONTHS={he:["ינואר","פברואר","מרץ","אפריל","מאי","יוני","יולי","אוגוסט","ספטמבר","אוקטובר","נובמבר","דצמבר"],en:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]};
 const PALETTE = ["#e05a5a","#5ab8e0","#8b5ae0","#e0a85a","#5ae09a","#e07a5a","#5ae0d4","#c05ae0","#a0e05a","#e05aa0","#5a80e0","#e0c05a","#f0b860","#60c8f0"];
@@ -164,7 +165,7 @@ TH = dark ? {
   text:"#1a1a22", textDim:"#666", textFaint:"#999", inputBg:"#ffffff", cardBg:"#ffffff", todayBg:"#fdeede"
 };
 useEffect(()=>{ try{ localStorage.setItem("fontscale",fontScale); }catch{} },[fontScale]);
-const S={
+S={
 navBtn:{padding:"10px 17px",borderRadius:12,border:"none",background:TH.border2,color:TH.textDim,cursor:"pointer",fontSize:16,minWidth:44,transition:"all .15s ease"},
 addBtn:{padding:"12px 20px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:600,transition:"all .15s ease"},
 sel:{padding:"11px 15px",borderRadius:12,border:`1px solid ${TH.border}`,background:TH.panel2,color:TH.textDim,cursor:"pointer",fontSize:15,outline:"none"},
