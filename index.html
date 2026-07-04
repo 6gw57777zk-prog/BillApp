@@ -303,6 +303,8 @@ function closeTutorial(){ setTutSeen(true); saveProfile({tutorial_seen:true}); s
 async function logout(){ await sb.auth.signOut(); setUserType(null); setEvents([]); setCategories([]); setPunches([]); setSettingsModal(false); }
 const [view,setView]=useState("cal");
 const [dayModal,setDayModal]=useState(null);   // תאריך שנבחר להצגת רשימת אירועים
+const [selClient,setSelClient]=useState(null); // לקוח נבחר במסך ניהול לקוחות
+const [clientSearch,setClientSearch]=useState("");
 function openDay(date){ setDayModal(date); }
 const [calMode,setCalMode]=useState("week");
 const [base,setBase]=useState(today());
@@ -476,7 +478,7 @@ return (
 <span style={{fontSize:16,fontWeight:700,color:"#f0ece4"}}>{t.appName}</span>
 </div>
 <div style={{display:"flex",gap:4,alignItems:"center"}}>
-{[["cal","📅","#e05a5a"],["payments","💳","#8b5ae0"],["punches","🎟","#5ab8e0"]].map(([v,l,c])=>(
+{[["cal","📅","#e05a5a"],["payments","💳","#8b5ae0"],["punches","🎟","#5ab8e0"],...(isBiz?[["clients","🧑","#e0a85a"]]:[])].map(([v,l,c])=>(
 <button key={v} id={v==="payments"?"tut-nav-pay":v==="punches"?"tut-nav-punch":"tut-nav-cal"} onClick={()=>setView(v)} style={{padding:"9px 13px",borderRadius:13,border:"none",background:view===v?c:"#1c1c28",color:view===v?"#fff":"#666",cursor:"pointer",fontSize:16,transition:"all .15s ease"}}>{l}</button>
 ))}
 <button id="tut-settings" onClick={()=>setSettingsModal(true)} style={{padding:"9px 12px",borderRadius:13,border:"none",background:"#1c1c28",color:"#666",cursor:"pointer",fontSize:16,transition:"all .15s ease"}}>⚙️</button>
@@ -634,6 +636,74 @@ return (
           );
         })}
       </div>
+    </>}
+    {view==="clients" && <>
+      {!selClient?(
+        <>
+          <div style={{marginBottom:14}}>
+            <input value={clientSearch} onChange={e=>setClientSearch(e.target.value)} placeholder={t.searchClient} style={{...S.inp,marginBottom:0}}/>
+          </div>
+          {clientCats.length===0&&<Empty txt={t.noClients}/>}
+          <div style={{display:"flex",flexDirection:"column",gap:9}}>
+            {clientCats.filter(c=>c.label.toLowerCase().includes(clientSearch.toLowerCase())).map(c=>{
+              const cEvents=events.filter(e=>e.category===c.id);
+              const pendCount=cEvents.filter(e=>e.payment==="pending"&&e.date<=today()).length;
+              return (
+                <div key={c.id} onClick={()=>setSelClient(c.id)} style={{display:"flex",alignItems:"center",gap:12,background:"#111118",border:`1px solid ${c.color}22`,borderRadius:14,padding:"13px 15px",cursor:"pointer"}}>
+                  <div style={{width:44,height:44,borderRadius:12,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{c.emoji}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:16,fontWeight:700,color:"#e8e4dc"}}>{c.label}</div>
+                    <div style={{fontSize:12,color:"#666",marginTop:2}}>
+                      {c.sessionPrice>0?`₪${c.sessionPrice} ${lang==="he"?"לפגישה":"/session"}`:lang==="he"?"ללא מחיר קבוע":"no set price"}
+                      {c.credit>0?` · 🎫 ₪${c.credit}`:""}
+                      {pendCount>0?` · ⏳ ${pendCount}`:""}
+                    </div>
+                  </div>
+                  <span style={{color:c.color,fontSize:18}}>‹</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ):(()=>{
+        const c=C(selClient);
+        const cEvents=events.filter(e=>e.category===selClient).sort((a,b)=>b.date.localeCompare(a.date)||(b.time||"").localeCompare(a.time||""));
+        const paidEvs=cEvents.filter(e=>e.payment==="paid");
+        const pendEvs=cEvents.filter(e=>e.payment==="pending"&&e.date<=today());
+        const totPaid=paidEvs.reduce((s,e)=>{const pr=c.sessionPrice>0?c.sessionPrice:Number(e.amount||0);return s+Math.min(Number(e.amount||0)||pr,pr||Number(e.amount||0));},0);
+        const totPend=pendEvs.reduce((s,e)=>{const pr=c.sessionPrice>0?c.sessionPrice:Number(e.amount||0);return s+pr;},0);
+        return (
+          <>
+            <button onClick={()=>{setSelClient(null);setClientSearch("");}} style={{background:"none",border:"none",color:"#8b5ae0",cursor:"pointer",fontSize:15,marginBottom:14,padding:0}}>‹ {t.allClients}</button>
+            <div style={{display:"flex",alignItems:"center",gap:13,marginBottom:16}}>
+              <div style={{width:54,height:54,borderRadius:14,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{c.emoji}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:20,fontWeight:800,color:"#f0ece4"}}>{c.label}</div>
+                <div style={{fontSize:13,color:"#666",marginTop:2}}>{c.sessionPrice>0?`₪${c.sessionPrice} ${lang==="he"?"לפגישה":"/session"}`:lang==="he"?"ללא מחיר קבוע":"no set price"}</div>
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:18}}>
+              <SumCard label={t.paid} amount={totPaid} color="#5ae09a" emoji="✅" sym="₪"/>
+              <SumCard label={t.pending} amount={totPend} color="#e0a85a" emoji="⏳" sym="₪"/>
+              <SumCard label={t.clientCredit} amount={c.credit||0} color="#e0a85a" emoji="🎫" sym="₪"/>
+            </div>
+            <div style={{fontSize:14,fontWeight:700,color:"#888",marginBottom:10}}>{t.clientHistory}</div>
+            {cEvents.length===0?<Empty txt={t.noPastSessions}/>:(
+              <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                {cEvents.map(ev=>{ const d=new Date(ev.date); const pcol=ev.payment==="paid"?"#5ae09a":ev.payment==="pending"?"#e0a85a":"#555"; const price=c.sessionPrice>0?c.sessionPrice:Number(ev.amount||0); const shown=c.sessionPrice>0?Math.min(Number(ev.amount||0),c.sessionPrice):Number(ev.amount||0); return (
+                  <div key={ev.id} onClick={()=>openEdit(ev)} style={{display:"flex",alignItems:"center",gap:11,background:"#111118",border:"1px solid #1c1c28",borderRadius:12,padding:"11px 13px",cursor:"pointer"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:600,color:"#ddd"}}>{DAYS_HE[d.getDay()]} {d.getDate()} {MONTHS_HE[d.getMonth()]} · {ev.time}</div>
+                      {ev.amount&&ev.payment!=="none"&&<div style={{fontSize:12,color:"#666",marginTop:2}}>₪{shown}{ev.fromCredit?" · 🎫 "+t.fromCreditLabel:""}</div>}
+                    </div>
+                    {ev.payment!=="none"&&<span style={{fontSize:12,fontWeight:600,color:pcol}}>{ev.payment==="paid"?t.paid:t.pending}</span>}
+                  </div>
+                ); })}
+              </div>
+            )}
+          </>
+        );
+      })()}
     </>}
   </div>
   {deleteConfirm&&(
