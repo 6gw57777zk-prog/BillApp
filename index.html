@@ -134,7 +134,7 @@ function monthGrid(y,m){ const first=new Date(y,m,1),last=new Date(y,m+1,0),cell
 function makeRecurring(base,gid){ if(!base.recur||base.recur==="none") return []; const monthly=base.recur==="monthly",count=monthly?6:12; let cur=base.date; const res=[]; for(let i=1;i<=count;i++){ cur=monthly?addMonths(cur,1):addDays(cur,base.recur==="weekly"?7:14); res.push({...base,id:gid+"_r"+i,date:cur,recurGroupId:gid}); } return res; }
 function money(amount,curId){ const c=CUR(curId); return c.symbol+Number(amount||0).toLocaleString(); }
 // ---- ממירים: שורת דאטה בייס <-> אובייקט באפליקציה ----
-function dbToEvent(r){ return {id:r.id,title:r.title,date:r.event_date,time:r.event_time,category:r.category_id||"",payment:r.payment,amount:r.amount==null?"":String(r.amount),currency:r.currency||"ILS",notes:r.notes||"",recur:r.recur||"none",recurGroupId:r.recur_group_id||undefined,applied:!!r.applied}; }
+function dbToEvent(r){ return {id:r.id,title:r.title,date:r.event_date,time:r.event_time,category:r.category_id||"",payment:r.payment,amount:r.amount==null?"":String(r.amount),currency:r.currency||"ILS",notes:r.notes||"",recur:r.recur||"none",recurGroupId:r.recur_group_id||undefined,applied:!!r.applied,fromCredit:!!r.from_credit}; }
 function eventToDb(e,uid){ return {user_id:uid,title:e.title,event_date:e.date,event_time:e.time,category_id:e.category||null,payment:e.payment,amount:e.amount===""||e.amount==null?0:Number(e.amount),currency:e.currency||"ILS",notes:e.notes||"",recur:e.recur||"none",recur_group_id:e.recurGroupId||null}; }
 function dbToPunch(r){ return {id:r.id,name:r.name,total:r.total,used:r.used||0,category:r.category_id||"",amount:r.amount==null?"":String(r.amount)}; }
 let _cats=[];
@@ -181,6 +181,38 @@ const [events,setEvents]=useState([]);
 const [punches,setPunches]=useState([]);
 const [categories,setCategories]=useState([]);
 
+// ====== יישוב חשבון קרדיט מרכזי (דטרמיניסטי, ללא כפילויות) ======
+// מודל: כל תשלום ידני שסכומו גדול ממחיר הפגישה מייצר "עודף" שנכנס לארנק הקרדיט.
+// הארנק צובע פגישות "ממתין" לפי סדר כרונולוגי (הישנות קודם), כל פגישה פעם אחת בלבד.
+async function settleClientArrays(cat, evsArr){
+  const price=Number(cat.sessionPrice)||0;
+  if(price<=0){ return; } // בלי מחיר פגישה אין ניהול קרדיט
+  const mine=evsArr.filter(e=>e.category===cat.id);
+  // שלב 0: איפוס — כל פגישה ששולמה מקרדיט חוזרת ל"ממתין" כדי לחשב מאפס (מונע כפילויות/שאריות)
+  for(const e of mine){
+    if(e.fromCredit){ e.payment="pending"; e.fromCredit=false; await sb.from("events").update({payment:"pending",from_credit:false}).eq("id",e.id); }
+  }
+  // שלב 1: חישוב הארנק — עודף שנוצר מתשלומים ידניים (amount>price) על פגישות ששולמו
+  let wallet=0;
+  for(const e of mine){
+    const amt=Number(e.amount)||0;
+    if(e.payment==="paid" && amt>price){ wallet+=(amt-price); }
+  }
+  // שלב 2: צביעת פגישות ממתינות מהארנק לפי סדר כרונולוגי
+  const pend=mine.filter(e=>e.payment==="pending")
+                 .sort((a,b)=>a.date.localeCompare(b.date)||(a.time||"").localeCompare(b.time||""));
+  for(const e of pend){
+    if(wallet>=price){
+      wallet-=price;
+      e.payment="paid"; e.fromCredit=true;
+      await sb.from("events").update({payment:"paid",from_credit:true}).eq("id",e.id);
+    } else break;
+  }
+  // שלב 3: שמירת יתרת הארנק
+  const finalCredit=Math.max(wallet,0);
+  cat.credit=finalCredit;
+  await sb.from("categories").update({credit_balance:finalCredit}).eq("id",cat.id);
+}
 // ---- טעינת כל הנתונים של המשתמש מהדאטה בייס ----
 async function loadAll(uid){
   setLoading(true);
@@ -196,26 +228,19 @@ async function loadAll(uid){
     let catsArr=(cats.data||[]).map(c=>({id:c.id,label:c.label,emoji:c.emoji,color:c.color,kind:c.kind||"client",sessionPrice:Number(c.session_price||0),credit:Number(c.credit_balance||0)}));
     let evsArr=(evs.data||[]).map(dbToEvent);
     let punchArr=(pcs.data||[]).map(dbToPunch);
-    // --- החלת אפקטים של אירועים שהתרחשו (ניקוב כרטיסייה + זיכוי מקרדיט) ---
+    // --- ניקוב כרטיסיות לאירועים שהתרחשו (פעם אחת לכל אירוע) ---
     const t=today();
-    const occurred=evsArr.filter(e=>!e.applied && e.date<=t).sort((a,b)=>a.date.localeCompare(b.date));
-    for(const ev of occurred){
-      // ניקוב כרטיסייה פעילה של אותו לקוח
+    const toPunch=evsArr.filter(e=>!e.applied && e.date<=t).sort((a,b)=>a.date.localeCompare(b.date));
+    for(const ev of toPunch){
       const ap=punchArr.find(p=>p.category===ev.category&&(p.used||0)<p.total);
       if(ap){ ap.used=(ap.used||0)+1; await sb.from("punch_cards").update({used:ap.used}).eq("id",ap.id); }
-      // זיכוי מקרדיט: אם האירוע ממתין לתשלום ויש ללקוח קרדיט מספיק
-      const cat=catsArr.find(c=>c.id===ev.category);
-      if(cat && ev.payment==="pending"){
-        const price=cat.sessionPrice>0?cat.sessionPrice:Number(ev.amount||0);
-        if(price>0 && cat.credit>=price){
-          cat.credit-=price;
-          ev.payment="paid";
-          await sb.from("events").update({payment:"paid"}).eq("id",ev.id);
-          await sb.from("categories").update({credit_balance:cat.credit}).eq("id",cat.id);
-        }
-      }
       ev.applied=true;
       await sb.from("events").update({applied:true}).eq("id",ev.id);
+    }
+    // --- יישוב חשבון קרדיט לכל לקוח (דטרמיניסטי, ללא כפילויות) ---
+    for(const cat of catsArr){
+      if((cat.kind||"client")!=="client") continue;
+      await settleClientArrays(cat,evsArr);
     }
     setCategories(catsArr);
     _cats=catsArr;
@@ -303,7 +328,7 @@ useEffect(()=>{ _cats=categories; },[categories]);
 const C=id=>categories.find(c=>c.id===id)||{id:"?",label:"?",color:"#555",emoji:"📌"};
 async function addCategory(kind){ if(!nCat.label.trim()||!uid) return; const k=kind||(isBiz?"client":"personal"); const price=k==="client"?(Number(nCat.price)||0):0; const payload={user_id:uid,label:nCat.label.trim(),emoji:nCat.emoji,color:nCat.color,kind:k,session_price:price}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return; } setCategories(cs=>[...cs,{id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||k,sessionPrice:Number(data.session_price||0),credit:0}]); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); }
 // יצירה מהירה של קטגוריה/לקוח מתוך טופס האירוע (מחזיר את הרשומה החדשה)
-async function saveClientPrice(id,price){ const p=Number(price)||0; const {error}=await sb.from("categories").update({session_price:p}).eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.map(c=>c.id===id?{...c,sessionPrice:p}:c)); setCatEdit(null); }
+async function saveClientPrice(id,price){ const p=Number(price)||0; const {error}=await sb.from("categories").update({session_price:p}).eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.map(c=>c.id===id?{...c,sessionPrice:p}:c)); if(_cats){const i=_cats.findIndex(c=>c.id===id); if(i>=0)_cats[i]={..._cats[i],sessionPrice:p};} setCatEdit(null); await settleClientState(id); }
 async function quickCreateCategory(label,kind){ if(!label.trim()||!uid) return null; const color=PALETTE[Math.floor(Math.random()*PALETTE.length)]; const emoji=kind==="client"?"🧑":"⭐"; const payload={user_id:uid,label:label.trim(),emoji,color,kind,session_price:0}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return null; } const cat={id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||kind,sessionPrice:0,credit:0}; setCategories(cs=>[...cs,cat]); return cat; }
 async function deleteCategory(id){ const {error}=await sb.from("categories").delete().eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.filter(c=>c.id!==id)); }
 // קטגוריות מסוננות לפי סוג (ללקוח/אישי)
@@ -338,19 +363,26 @@ async function saveEvent(){ if(!form.title.trim()||!uid) return;
       const {data,error}=await sb.from("events").insert(baseRow).select().single();
       if(error){ console.error(error); return; }
       setEvents(es=>[...es,dbToEvent(data)]);
-      // --- ניהול קרדיט: אם הוזן סכום גדול ממחיר הפגישה של הלקוח, העודף נשמר כקרדיט ---
-      const cat=categories.find(c=>c.id===form.category);
-      const amt=Number(form.amount)||0;
-      if(cat && cat.sessionPrice>0 && amt>cat.sessionPrice && form.payment!=="none"){
-        const overflow=amt-cat.sessionPrice;
-        const newCredit=(cat.credit||0)+overflow;
-        await sb.from("categories").update({credit_balance:newCredit}).eq("id",cat.id);
-        setCategories(cs=>cs.map(c=>c.id===cat.id?{...c,credit:newCredit}:c));
-      }
     }
-    // הערה: ניקוב כרטיסייה וזיכוי קרדיט קורים כשהאירוע מתרחש (reconcileOccurred), לא בעת היצירה
   }
   setModal(false);
+  // יישוב חשבון הקרדיט של הלקוח אחרי כל שינוי
+  await settleClientState(form.category);
+}
+// עוטף את settleClientArrays לעבודה מול ה-state של React
+async function settleClientState(catId){
+  if(!catId) return;
+  const cat=(_cats||categories).find(c=>c.id===catId);
+  if(!cat || (cat.kind||"client")!=="client" || !(cat.sessionPrice>0)) return;
+  // מושכים את המצב העדכני מהדאטה בייס כדי לחשב נכון
+  const {data:evRows}=await sb.from("events").select("*").eq("category_id",catId);
+  const evsArr=(evRows||[]).map(dbToEvent);
+  const catObj={...cat};
+  await settleClientArrays(catObj,evsArr);
+  // עדכון ה-state המקומי
+  setCategories(cs=>cs.map(c=>c.id===catId?{...c,credit:catObj.credit}:c));
+  setEvents(es=>es.map(e=>{ const u=evsArr.find(x=>x.id===e.id); return u?{...e,payment:u.payment,fromCredit:u.fromCredit}:e; }));
+  if(_cats){ const i=_cats.findIndex(c=>c.id===catId); if(i>=0) _cats[i]={..._cats[i],credit:catObj.credit}; }
 }
 async function deleteEvent(id){
   const ev=events.find(e=>e.id===id);
@@ -361,8 +393,9 @@ async function deleteEvent(id){
   }
   const {error}=await sb.from("events").delete().eq("id",id); if(error){ console.error(error); return; }
   setEvents(es=>es.filter(e=>e.id!==id)); setDeleteConfirm(null); setModal(false);
+  if(ev) await settleClientState(ev.category);
 }
-async function togglePay(id,e){ e&&e.stopPropagation(); const ev=events.find(x=>x.id===id); if(!ev) return; const nxt=ev.payment==="pending"?"paid":ev.payment==="paid"?"pending":ev.payment; if(nxt===ev.payment) return; setEvents(es=>es.map(x=>x.id===id?{...x,payment:nxt}:x)); const {error}=await sb.from("events").update({payment:nxt}).eq("id",id); if(error){ console.error(error); setEvents(es=>es.map(x=>x.id===id?{...x,payment:ev.payment}:x)); } }
+async function togglePay(id,e){ e&&e.stopPropagation(); const ev=events.find(x=>x.id===id); if(!ev) return; const nxt=ev.payment==="pending"?"paid":ev.payment==="paid"?"pending":ev.payment; if(nxt===ev.payment) return; setEvents(es=>es.map(x=>x.id===id?{...x,payment:nxt,fromCredit:false}:x)); const {error}=await sb.from("events").update({payment:nxt,from_credit:false}).eq("id",id); if(error){ console.error(error); setEvents(es=>es.map(x=>x.id===id?{...x,payment:ev.payment}:x)); return; } await settleClientState(ev.category); }
 function openNewPunch(){ setPEditing(null); setPForm({name:"",total:10,category:isBiz?"":(categories[0]?.id||""),amount:""}); setPSearch(""); setPunchModal(true); }
 function openEditPunch(pc){ setPEditing(pc.id); setPForm({name:pc.name,total:pc.total,category:pc.category,amount:pc.amount||""}); setPSearch(""); setPunchModal(true); }
 function pickPunchCustomer(c){ setPForm(f=>({...f,category:c.id,name:c.label})); setPSearch(""); }
