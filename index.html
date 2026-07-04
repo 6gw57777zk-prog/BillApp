@@ -42,6 +42,7 @@ he:{
   private:"משתמש פרטי", privateSub:"ניהול אישי של אירועים ותשלומים", business:"בעל עסק", businessSub:"ניהול לקוחות, פגישות ותשלומים",
   week:"שבועי", month:"חודשי", add:"+ הוסף", settings:"הגדרות", accountType:"סוג חשבון", settingsNote:"שינוי הסוג לא מוחק נתונים קיימים.", close:"סגור",
   language:"שפה", defaultCurrency:"מטבע ברירת מחדל", currency:"מטבע", fontSize:"גודל טקסט", fontNormal:"רגיל", fontLarge:"גדול",
+  waTitle:"חיבור וואטסאפ", waConnect:"חבר/י וואטסאפ", waDesc:"חברו את מספר הוואטסאפ שלכם כדי לקבוע אירועים בהודעה פשוטה ל-agent.", waPhonePh:"מספר טלפון (למשל 0501234567)", waGetCode:"צור קוד אימות", waCodeTitle:"קוד האימות שלך:", waCodeInstr:n=>`שלחו את הקוד הזה בהודעת וואטסאפ אל ${n} כדי להשלים את החיבור.`, waCodeExpiry:"הקוד תקף ל-15 דקות.", waWaiting:"ממתין לאימות... שלחו את הקוד בוואטסאפ.", waConnected:"וואטסאפ מחובר ✓", waConnectedNum:n=>`מחובר: ${n}`, waDisconnect:"נתק וואטסאפ", waInvalidPhone:"מספר טלפון לא תקין.", waAgentNumberTBD:"(מספר ה-agent יוגדר בקרוב)", waBy:"דרך וואטסאפ",
   weekEvents:"אירועי השבוע", monthEvents:"כל אירועי החודש", all:"הכל", paid:"שולם", pending:"ממתין", future:"עתידי", none:"ללא תשלום",
   clickDayToAdd:"יש ללחוץ על יום להוספת אירוע", createFirst:cw=>`קודם יש ליצור ${cw} — לחיצה על + הוסף`,
   allStatuses:"כל הסטטוסים", noPayments:"אין תשלומים", totalExpected:"סה״כ צפוי", total:"סה״כ",
@@ -84,6 +85,7 @@ en:{
   private:"Personal user", privateSub:"Manage your own events and payments", business:"Business owner", businessSub:"Manage clients, sessions and payments",
   week:"Week", month:"Month", add:"+ Add", settings:"Settings", accountType:"Account type", settingsNote:"Changing the type won't delete existing data.", close:"Close",
   language:"Language", defaultCurrency:"Default currency", currency:"Currency", fontSize:"Text size", fontNormal:"Normal", fontLarge:"Large",
+  waTitle:"WhatsApp connection", waConnect:"Connect WhatsApp", waDesc:"Connect your WhatsApp number to schedule events with a simple message to the agent.", waPhonePh:"Phone number (e.g. +972501234567)", waGetCode:"Generate verification code", waCodeTitle:"Your verification code:", waCodeInstr:n=>`Send this code in a WhatsApp message to ${n} to complete the connection.`, waCodeExpiry:"The code is valid for 15 minutes.", waWaiting:"Waiting for verification... send the code on WhatsApp.", waConnected:"WhatsApp connected ✓", waConnectedNum:n=>`Connected: ${n}`, waDisconnect:"Disconnect WhatsApp", waInvalidPhone:"Invalid phone number.", waAgentNumberTBD:"(agent number coming soon)", waBy:"via WhatsApp",
   weekEvents:"This week's events", monthEvents:"All events this month", all:"All", paid:"Paid", pending:"Pending", future:"Upcoming", none:"No payment",
   clickDayToAdd:"Tap a day to add an event", createFirst:cw=>`First create a ${cw} — tap + Add`,
   allStatuses:"All statuses", noPayments:"No payments", totalExpected:"Total expected", total:"Total",
@@ -193,6 +195,32 @@ useEffect(()=>{
 },[session]);
 
 const uid=session?.user?.id;
+const [waLink,setWaLink]=useState(null);       // רשומת הקישור מהדאטה בייס
+const [waModal,setWaModal]=useState(false);
+const [waPhone,setWaPhone]=useState("");
+const [waCode,setWaCode]=useState(null);
+const [waBusy,setWaBusy]=useState(false);
+const [waErr,setWaErr]=useState(null);
+// נרמול מספר טלפון ישראלי לפורמט בינלאומי E.164
+function normalizePhone(raw){ let p=(raw||"").replace(/[^\d+]/g,""); if(p.startsWith("+")) return p; if(p.startsWith("00")) return "+"+p.slice(2); if(p.startsWith("0")) return "+972"+p.slice(1); if(p.startsWith("972")) return "+"+p; return "+"+p; }
+async function loadWaLink(){ if(!uid) return; const {data}=await sb.from("whatsapp_links").select("*").eq("user_id",uid).maybeSingle(); setWaLink(data||null); if(data&&!data.verified&&data.verify_code){ setWaCode(data.verify_code); } }
+useEffect(()=>{ if(uid) loadWaLink(); },[uid]);
+async function waGenerateCode(){
+  setWaErr(null);
+  const phone=normalizePhone(waPhone);
+  if(phone.length<10){ setWaErr(t.waInvalidPhone); return; }
+  setWaBusy(true);
+  const code=String(Math.floor(100000+Math.random()*900000));
+  const expires=new Date(Date.now()+15*60*1000).toISOString();
+  try{
+    // מוחק קישור קודם לא מאומת ויוצר חדש
+    await sb.from("whatsapp_links").delete().eq("user_id",uid);
+    const {data,error}=await sb.from("whatsapp_links").insert({user_id:uid,phone_e164:phone,verified:false,verify_code:code,verify_expires_at:expires}).select().single();
+    if(error){ setWaErr(error.message); } else { setWaLink(data); setWaCode(code); }
+  }catch(e){ setWaErr(e&&e.message?e.message:String(e)); }
+  setWaBusy(false);
+}
+async function waDisconnect(){ if(!uid) return; await sb.from("whatsapp_links").delete().eq("user_id",uid); setWaLink(null); setWaCode(null); setWaPhone(""); }
 
 // ---- שמירת העדפות לפרופיל ----
 async function saveProfile(patch){ if(!uid) return; await sb.from("profiles").upsert({id:uid,...patch}); }
@@ -800,9 +828,49 @@ return (
             <button key={fs} onClick={()=>setFontScale(fs)} style={{flex:1,padding:"13px",borderRadius:12,border:`1px solid ${fontScale===fs?"#e0a85a":"#252535"}`,background:fontScale===fs?"#e0a85a18":"#111118",color:fontScale===fs?"#e0a85a":"#888",cursor:"pointer",fontSize:sz,fontWeight:600}}>{lbl}</button>
           ))}
         </div>
+        <button onClick={()=>{setWaErr(null);setWaModal(true);}} style={{width:"100%",padding:"12px",borderRadius:12,border:`1px solid ${waLink&&waLink.verified?"#25D36655":"#252535"}`,background:waLink&&waLink.verified?"#25D36618":"#111118",color:waLink&&waLink.verified?"#25D366":"#aaa",cursor:"pointer",fontSize:15,fontWeight:600,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>💬 {waLink&&waLink.verified?t.waConnected:t.waConnect}</button>
         <button onClick={openTutorial} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid #252535",background:"#111118",color:"#aaa",cursor:"pointer",fontSize:15,fontWeight:600,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📖 {t.tutorial}</button>
         <button onClick={logout} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid #e05a5a33",background:"transparent",color:"#e05a5a",cursor:"pointer",fontSize:15,fontWeight:600,marginBottom:10}}>{t.authLogout}</button>
         <button onClick={()=>setSettingsModal(false)} style={{width:"100%",padding:"10px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#e05a5a,#8b5ae0)",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:600}}>{t.close}</button>
+      </div>
+    </div>
+  )}
+  {waModal&&(
+    <div style={{position:"fixed",inset:0,background:"#000c",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>e.target===e.currentTarget&&setWaModal(false)}>
+      <div style={{background:"#161620",border:"1px solid #252535",borderRadius:"18px 18px 0 0",padding:"22px 18px 30px",width:"min(480px,100vw)",maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+          <span style={{fontSize:17,fontWeight:700,color:"#f0ece4"}}>💬 {t.waTitle}</span>
+          <button onClick={()=>setWaModal(false)} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:20}}>✕</button>
+        </div>
+        {waLink&&waLink.verified?(
+          <>
+            <div style={{background:"#25D36618",border:"1px solid #25D36655",borderRadius:12,padding:"16px",textAlign:"center",marginBottom:16,marginTop:8}}>
+              <div style={{fontSize:34,marginBottom:6}}>✅</div>
+              <div style={{fontSize:15,fontWeight:700,color:"#25D366",marginBottom:4}}>{t.waConnected}</div>
+              <div style={{fontSize:13,color:"#888"}}>{t.waConnectedNum(waLink.phone_e164)}</div>
+            </div>
+            <button onClick={waDisconnect} style={{width:"100%",padding:"13px",borderRadius:12,border:"1px solid #e05a5a33",background:"transparent",color:"#e05a5a",cursor:"pointer",fontSize:15,fontWeight:600}}>{t.waDisconnect}</button>
+          </>
+        ):waCode?(
+          <>
+            <div style={{fontSize:14,color:"#999",lineHeight:1.6,marginBottom:16,marginTop:6}}>{t.waCodeInstr(t.waAgentNumberTBD)}</div>
+            <div style={{fontSize:13,color:"#666",marginBottom:8}}>{t.waCodeTitle}</div>
+            <div style={{background:"#0d0d12",border:"2px dashed #25D36655",borderRadius:14,padding:"20px",textAlign:"center",marginBottom:14}}>
+              <span style={{fontSize:34,fontWeight:800,letterSpacing:8,color:"#25D366",fontFamily:"monospace"}}>{waCode}</span>
+            </div>
+            <div style={{fontSize:12,color:"#666",textAlign:"center",marginBottom:16}}>{t.waCodeExpiry}</div>
+            <div style={{background:"#e0a85a11",border:"1px solid #e0a85a33",borderRadius:10,padding:"10px 12px",fontSize:12,color:"#e0a85a",marginBottom:16}}>{t.waWaiting}</div>
+            <button onClick={waDisconnect} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid #252535",background:"transparent",color:"#888",cursor:"pointer",fontSize:14}}>{t.cancel}</button>
+          </>
+        ):(
+          <>
+            <div style={{fontSize:14,color:"#999",lineHeight:1.6,marginBottom:18,marginTop:6}}>{t.waDesc}</div>
+            <label style={S.lbl}>{t.waPhonePh}</label>
+            <input type="tel" inputMode="tel" value={waPhone} onChange={e=>setWaPhone(e.target.value)} placeholder={t.waPhonePh} style={{...S.inp,direction:"ltr",textAlign:rtl?"right":"left"}}/>
+            {waErr&&<div style={{fontSize:13,color:"#e05a5a",marginBottom:12}}>{waErr}</div>}
+            <button onClick={waGenerateCode} disabled={waBusy||!waPhone.trim()} style={{width:"100%",padding:"13px",borderRadius:12,border:"none",background:(waBusy||!waPhone.trim())?"#252535":"linear-gradient(135deg,#25D366,#128C7E)",color:(waBusy||!waPhone.trim())?"#555":"#fff",cursor:(waBusy||!waPhone.trim())?"default":"pointer",fontSize:15,fontWeight:700}}>{waBusy?t.authWait:t.waGetCode}</button>
+          </>
+        )}
       </div>
     </div>
   )}
