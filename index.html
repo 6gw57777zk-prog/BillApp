@@ -318,6 +318,7 @@ function openTutorial(){ setSettingsModal(false); setTutStep(0); }
 function closeTutorial(){ setTutSeen(true); saveProfile({tutorial_seen:true}); setTutStep(null); }
 async function logout(){ await sb.auth.signOut(); setUserType(null); setEvents([]); setCategories([]); setPunches([]); setSettingsModal(false); }
 const [view,setView]=useState("cal");
+useEffect(()=>{ if(isBiz&&view==="payments") setView("clients"); if(!isBiz&&view==="clients") setView("payments"); },[isBiz,view]);
 const [dayModal,setDayModal]=useState(null);   // תאריך שנבחר להצגת רשימת אירועים
 const [selClient,setSelClient]=useState(null); // לקוח נבחר במסך ניהול לקוחות
 const [clientSearch,setClientSearch]=useState("");
@@ -494,7 +495,7 @@ return (
 <span style={{fontSize:16,fontWeight:700,color:TH.text}}>{t.appName}</span>
 </div>
 <div style={{display:"flex",gap:4,alignItems:"center"}}>
-{[["cal","📅","#e05a5a"],["payments","💳","#8b5ae0"],["punches","🎟","#5ab8e0"],...(isBiz?[["clients","🧑","#e0a85a"]]:[])].map(([v,l,c])=>(
+{[["cal","📅","#e05a5a"],...(!isBiz?[["payments","💳","#8b5ae0"]]:[]),["punches","🎟","#5ab8e0"],...(isBiz?[["clients","🧑","#e0a85a"]]:[])].map(([v,l,c])=>(
 <button key={v} id={v==="payments"?"tut-nav-pay":v==="punches"?"tut-nav-punch":"tut-nav-cal"} onClick={()=>setView(v)} style={{padding:"9px 13px",borderRadius:13,border:"none",background:view===v?c:TH.border2,color:view===v?"#fff":TH.textDim,cursor:"pointer",fontSize:16,transition:"all .15s ease"}}>{l}</button>
 ))}
 <button id="tut-settings" onClick={()=>setSettingsModal(true)} style={{padding:"9px 12px",borderRadius:13,border:"none",background:TH.border2,color:TH.textDim,cursor:"pointer",fontSize:16,transition:"all .15s ease"}}>⚙️</button>
