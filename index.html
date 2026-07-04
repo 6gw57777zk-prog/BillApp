@@ -567,6 +567,16 @@ return (
         <SumCard label={t.pending} amount={totalPending} color="#e0a85a" emoji="⏳" sym={CUR(defCur).symbol}/>
         <SumCard label={t.total} amount={totalPaid+totalPending} color="#8b5ae0" emoji="💳" sym={CUR(defCur).symbol}/>
       </div>
+      {categories.filter(c=>(c.credit||0)>0).length>0&&(
+        <div style={{background:"#e0a85a14",border:"1px solid #e0a85a44",borderRadius:12,padding:"11px 14px",marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#e0a85a",marginBottom:6}}>🎫 {t.clientCredit}</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {categories.filter(c=>(c.credit||0)>0).map(c=>(
+              <span key={c.id} style={{fontSize:13,color:"#e8e4dc",background:"#e0a85a22",borderRadius:8,padding:"4px 10px"}}>{c.emoji} {c.label}: <b style={{color:"#e0a85a"}}>₪{c.credit}</b></span>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={{display:"flex",gap:6,marginBottom:11,flexWrap:"wrap",alignItems:"center"}}>
         <Combo value={fCat} onChange={setFCat} categories={categories} C={C} allLabel={t.allOf(L.catWordPl)} placeholder={t.searchPrefix(L.catWord)} noneLabel={t.notFound}/>
         <select value={fPay} onChange={e=>setFPay(e.target.value)} style={S.sel}>
