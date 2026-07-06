@@ -356,7 +356,7 @@ async function updateCategory(){
   if(error){ console.error(error); return; }
   setCategories(cs=>cs.map(c=>c.id===catEditId?{...c,label:patch.label,emoji:patch.emoji,color:patch.color,sessionPrice:price}:c));
   if(_cats){ const i=_cats.findIndex(c=>c.id===catEditId); if(i>=0)_cats[i]={..._cats[i],label:patch.label,emoji:patch.emoji,color:patch.color,sessionPrice:price}; }
-  const ed=catEditId; setCatEditId(null); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); await settleClientState(ed);
+  const ed=catEditId; setCatEditId(null); setCatModal(false); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); await settleClientState(ed);
 }
 // יצירה מהירה של קטגוריה/לקוח מתוך טופס האירוע (מחזיר את הרשומה החדשה)
 async function saveClientPrice(id,price){ const p=Number(price)||0; const {error}=await sb.from("categories").update({session_price:p}).eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.map(c=>c.id===id?{...c,sessionPrice:p}:c)); if(_cats){const i=_cats.findIndex(c=>c.id===id); if(i>=0)_cats[i]={..._cats[i],sessionPrice:p};} setCatEdit(null); await settleClientState(id); }
@@ -738,6 +738,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
                 <div style={{fontSize:20,fontWeight:800,color:TH.text}}>{c.label}</div>
                 <div style={{fontSize:13,color:TH.textDim,marginTop:2}}>{c.sessionPrice>0?`₪${c.sessionPrice} ${lang==="he"?"לפגישה":"/session"}`:lang==="he"?"ללא מחיר קבוע":"no set price"}</div>
               </div>
+              <button onClick={()=>{setNCat({label:c.label,emoji:c.emoji,color:c.color,price:String(c.sessionPrice||"")});setCatEditId(selClient);setCatModal(true);}} style={{background:TH.border2,border:"none",color:TH.textDim,cursor:"pointer",borderRadius:11,padding:"8px 13px",fontSize:14,fontWeight:600,whiteSpace:"nowrap"}}>✏️ {lang==="he"?"עריכה":"Edit"}</button>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:18}}>
               <SumCard label={t.paid} amount={Math.round(grandPaid)} color="#5ae09a" emoji="✅" sym="₪"/>
