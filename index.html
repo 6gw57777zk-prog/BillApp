@@ -580,22 +580,24 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
       {calMode==="month" && <>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
           <button onClick={()=>setBMonth(b=>{const m=b.m===0?11:b.m-1;return{y:b.m===0?b.y-1:b.y,m};})} style={S.navBtn}>‹</button>
-          <span style={{fontSize:15,fontWeight:600,color:TH.text}}>{MONTHS_HE[bMonth.m]} {bMonth.y}</span>
+          <span style={{fontSize:21,fontWeight:800,color:TH.text,letterSpacing:"-0.02em"}}>{MONTHS_HE[bMonth.m]} {bMonth.y}</span>
           <button onClick={()=>setBMonth(b=>{const m=b.m===11?0:b.m+1;return{y:b.m===11?b.y+1:b.y,m};})} style={S.navBtn}>›</button>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:4}}>
-          {DAYS_HE.map(d=><div key={d} style={{textAlign:"center",fontSize:10,color:"#2e2e40",padding:"2px 0"}}>{d}</div>)}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:0,marginBottom:2}}>
+          {DAYS_HE.map(d=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:600,color:TH.textFaint,padding:"4px 0"}}>{d}</div>)}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:18}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:0,marginBottom:18}}>
           {mCells.map((date,i)=>{
-            if(!date) return <div key={"_"+i}/>;
+            if(!date) return <div key={"_"+i} style={{borderTop:`0.5px solid ${TH.border}`}}/>;
             const dayEvs=events.filter(e=>e.date===date),isToday=date===todayStr,d=new Date(date);
             const catIds=[...new Set(dayEvs.map(e=>e.category))];
             return (
-              <div key={date} onClick={()=>openDay(date)} style={{background:isToday?TH.todayBg:TH.cardBg,border:`2px solid ${isToday?"#e6a856":TH.border2}`,borderRadius:9,padding:"7px 4px",minHeight:74,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",boxShadow:isToday?"0 0 0 1px #e6a85644":"none"}}>
-                <div style={{fontSize:14,fontWeight:600,color:isToday?"#e6a856":TH.textDim,marginBottom:4}}>{d.getDate()}</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:2,justifyContent:"center"}}>
-                  {catIds.slice(0,4).map(cid=>{ const c=C(cid),cnt=dayEvs.filter(e=>e.category===cid).length; return (<div key={cid} style={{position:"relative"}}><div style={{width:9,height:9,borderRadius:"50%",background:c.color}}/>{cnt>1&&<div style={{position:"absolute",top:-3,right:-3,width:11,height:11,borderRadius:"50%",background:c.color,fontSize:9,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{cnt}</div>}</div>); })}
+              <div key={date} onClick={()=>openDay(date)} style={{borderTop:`0.5px solid ${TH.border}`,padding:"8px 2px 10px",minHeight:80,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                <div style={{width:29,height:29,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isToday?"#e6a856":"transparent"}}>
+                  <span style={{fontSize:15,fontWeight:isToday?800:600,color:isToday?"#17140f":d.getDay()===6?TH.textFaint:TH.text}}>{d.getDate()}</span>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:2,width:"100%",padding:"0 4px"}}>
+                  {catIds.slice(0,3).map(cid=>{ const c=C(cid); return <div key={cid} style={{height:3,borderRadius:2,background:c.color}}/>; })}
                 </div>
               </div>
             );
