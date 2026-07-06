@@ -516,14 +516,18 @@ return (
 <div style={{width:32,height:32,borderRadius:9,background:"linear-gradient(135deg,#e6a856,#d98a3e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>✦</div>
 <span style={{fontSize:16,fontWeight:700,color:TH.text}}>{t.appName}</span>
 </div>
-<div style={{display:"flex",gap:4,alignItems:"center"}}>
-{[["cal","📅","#e05a5a"],...(!isBiz?[["payments","💳","#e6a856"]]:[]),["punches","🎟","#5ab8e0"],...(isBiz?[["clients","🧑","#e0a85a"]]:[])].map(([v,l,c])=>(
-<button key={v} id={v==="payments"?"tut-nav-pay":v==="punches"?"tut-nav-punch":"tut-nav-cal"} onClick={()=>setView(v)} style={{padding:"9px 13px",borderRadius:13,border:"none",background:view===v?c:TH.border2,color:view===v?"#fff":TH.textDim,cursor:"pointer",fontSize:16,transition:"all .15s ease"}}>{l}</button>
-))}
-<button id="tut-settings" onClick={()=>setSettingsModal(true)} style={{padding:"9px 12px",borderRadius:13,border:"none",background:TH.border2,color:TH.textDim,cursor:"pointer",fontSize:16,transition:"all .15s ease"}}>⚙️</button>
-</div>
+
 </header>
-  <div style={{maxWidth:840,margin:"0 auto",padding:"16px 13px 90px"}}>
+<nav style={{position:"fixed",left:0,right:0,bottom:0,zIndex:100,background:TH.cardBg,borderTop:`1px solid ${TH.border2}`,display:"flex",justifyContent:"space-around",alignItems:"stretch",padding:"7px 4px calc(9px + env(safe-area-inset-bottom))",boxShadow:"0 -6px 20px -12px rgba(0,0,0,.4)"}}>
+{[["cal","📅",lang==="he"?"יומן":"Calendar"],...(isBiz?[["clients","🧑",lang==="he"?"לקוחות":"Clients"]]:[["payments","💳",lang==="he"?"תשלומים":"Payments"]]),["punches","🎟",lang==="he"?"כרטיסיות":"Cards"],["__settings","⚙️",lang==="he"?"הגדרות":"Settings"]].map(([v,ic,lbl])=>{
+const active=v!=="__settings"&&view===v;
+return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="punches"?"tut-nav-punch":v==="__settings"?"tut-settings":"tut-nav-cal"} onClick={()=>{ if(v==="__settings"){setSettingsModal(true);} else {setView(v);} }} style={{flex:1,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"2px 4px",color:active?"#e6a856":TH.textDim}}>
+<div style={{width:46,height:28,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,background:active?"#e6a85622":"transparent",transition:"background .15s ease"}}>{ic}</div>
+<span style={{fontSize:11,fontWeight:600}}>{lbl}</span>
+</button>);
+})}
+</nav>
+  <div style={{maxWidth:840,margin:"0 auto",padding:"16px 13px calc(100px + env(safe-area-inset-bottom))"}}>
     {view==="cal" && <>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div id="tut-calmode" style={{display:"flex",gap:4}}>
