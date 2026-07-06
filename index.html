@@ -1025,7 +1025,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
         </div>
         {(()=>{ const catModalList = catModalKind==="personal"?personalCats:(isBiz?clientCats:categories); const ph = catModalKind==="personal"?t.personalCatPh:L.catNamePh; const emptyMsg = catModalKind==="personal"?t.noPersonalCats:L.catEmpty; return (
         <>
-        {catModalList.length===0?(
+        {!catEditId && (catModalList.length===0?(
           <div style={{textAlign:"center",color:TH.border,padding:"16px 0 20px",fontSize:13}}>{emptyMsg}</div>
         ):(
           <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:18}}>
@@ -1049,8 +1049,8 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
               </div>
             ))}
           </div>
-        )}
-        <div style={{borderTop:catModalList.length?"1px solid #1c1c28":"none",paddingTop:catModalList.length?16:0}}>
+        ))}
+        <div style={{borderTop:(!catEditId&&catModalList.length)?"1px solid #1c1c28":"none",paddingTop:(!catEditId&&catModalList.length)?16:0}}>
           <div style={{fontSize:13,fontWeight:600,color:TH.textDim,marginBottom:12}}>{catEditId?(lang==="he"?"עריכת לקוח":"Edit client"):catModalKind==="personal"?t.newPersonalCat.replace("+ ",""):L.catNew}</div>
           <label style={S.lbl}>{t.name}</label>
           <input value={nCat.label} onChange={e=>setNCat(f=>({...f,label:e.target.value}))} placeholder={ph} style={S.inp}/>
