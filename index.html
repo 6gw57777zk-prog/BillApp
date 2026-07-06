@@ -545,25 +545,19 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
           <span style={{fontSize:13,color:TH.textFaint}}>{new Date(wDates[0]).getDate()}–{new Date(wDates[6]).getDate()} {MONTHS_HE[new Date(wDates[6]).getMonth()]}</span>
           <button onClick={()=>setBase(addDays(base,7))} style={S.navBtn}>›</button>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:16}}>
           {wDates.map(date=>{
             const dayEvs=events.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time));
             const isToday=date===todayStr, d=new Date(date);
             return (
-              <div key={date} onClick={()=>openDay(date)} style={{background:isToday?TH.todayBg:TH.cardBg,border:`2px solid ${isToday?"#e6a856":TH.border2}`,borderRadius:10,padding:"9px 5px",minHeight:120,cursor:"pointer",boxShadow:isToday?"0 0 0 1px #e6a85644":"none"}}>
-                <div style={{textAlign:"center",marginBottom:5}}>
-                  <div style={{fontSize:11,color:"#333"}}>{DAYS_HE[d.getDay()]}</div>
-                  <div style={{fontSize:16,fontWeight:700,color:isToday?"#e6a856":TH.textDim}}>{d.getDate()}</div>
+              <div key={date} onClick={()=>openDay(date)} style={{padding:"7px 2px 10px",minHeight:96,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                <div style={{fontSize:10,fontWeight:600,color:TH.textFaint}}>{DAYS_HE[d.getDay()]}</div>
+                <div style={{width:30,height:30,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:isToday?"#e6a856":"transparent"}}>
+                  <span style={{fontSize:15,fontWeight:isToday?800:600,color:isToday?"#17140f":d.getDay()===6?TH.textFaint:TH.text}}>{d.getDate()}</span>
                 </div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:3,justifyContent:"center",marginBottom:4}}>
-                  {dayEvs.slice(0,6).map(ev=>(
-                    <div key={ev.id} onClick={e=>{e.stopPropagation();openEdit(ev);}} style={{width:8,height:8,borderRadius:"50%",background:C(ev.category).color,cursor:"pointer"}}/>
-                  ))}
+                <div style={{display:"flex",flexDirection:"column",gap:2,width:"100%",padding:"0 3px"}}>
+                  {[...new Set(dayEvs.map(e=>e.category))].slice(0,4).map(cid=>{const c=C(cid);return <div key={cid} style={{height:3,borderRadius:2,background:c.color}}/>;})}
                 </div>
-                {dayEvs.slice(0,2).map(ev=>(
-                  <div key={ev.id} onClick={e=>{e.stopPropagation();openEdit(ev);}} style={{background:C(ev.category).color+"22",borderRight:`2px solid ${C(ev.category).color}`,borderRadius:4,padding:"2px 4px",marginBottom:2,fontSize:11,color:C(ev.category).color,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}}>{ev.title}</div>
-                ))}
-                {dayEvs.length>2&&<div style={{fontSize:10,color:"#333",textAlign:"center"}}>+{dayEvs.length-2}</div>}
               </div>
             );
           })}
@@ -692,22 +686,24 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
             <button onClick={()=>{setCatEditId(null);setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""});setCatModal(true);}} style={{...S.addBtn,background:TH.border2,color:TH.textDim,whiteSpace:"nowrap"}}>➕ {lang==="he"?"לקוח":"Client"}</button>
           </div>
           {clientCats.length===0&&<Empty txt={t.noClients}/>}
-          <div style={{display:"flex",flexDirection:"column",gap:9}}>
-            {clientCats.filter(c=>c.label.toLowerCase().includes(clientSearch.toLowerCase())).map(c=>{
+          <div style={{background:TH.cardBg,border:`1px solid ${TH.border2}`,borderRadius:14,overflow:"hidden"}}>
+            {clientCats.filter(c=>c.label.toLowerCase().includes(clientSearch.toLowerCase())).map((c,idx)=>{
               const cEvents=events.filter(e=>e.category===c.id);
               const pendCount=cEvents.filter(e=>e.payment==="pending"&&e.date<=today()).length;
               return (
-                <div key={c.id} onClick={()=>setSelClient(c.id)} style={{display:"flex",alignItems:"center",gap:12,background:TH.cardBg,border:`1px solid ${c.color}22`,borderRadius:14,padding:"13px 15px",cursor:"pointer"}}>
-                  <div style={{width:44,height:44,borderRadius:12,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{c.emoji}</div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:16,fontWeight:700,color:TH.text}}>{c.label}</div>
-                    <div style={{fontSize:12,color:TH.textDim,marginTop:2}}>
-                      {c.sessionPrice>0?`₪${c.sessionPrice} ${lang==="he"?"לפגישה":"/session"}`:lang==="he"?"ללא מחיר קבוע":"no set price"}
-                      {c.credit>0?` · 🎫 ₪${c.credit}`:""}
-                      {pendCount>0?` · ⏳ ${pendCount}`:""}
+                <div key={c.id} onClick={()=>setSelClient(c.id)} style={{display:"flex",alignItems:"center",gap:11,padding:"0 14px",cursor:"pointer"}}>
+                  <div style={{width:34,height:34,borderRadius:9,background:c.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{c.emoji}</div>
+                  <div style={{flex:1,minWidth:0,display:"flex",alignItems:"center",gap:8,padding:"11px 0",borderTop:idx>0?`0.5px solid ${TH.border}`:"none"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:16,fontWeight:600,color:TH.text}}>{c.label}</div>
+                      <div style={{fontSize:12.5,color:TH.textDim,marginTop:1}}>
+                        {c.sessionPrice>0?`₪${c.sessionPrice} ${lang==="he"?"לפגישה":"/session"}`:lang==="he"?"ללא מחיר קבוע":"no set price"}
+                        {c.credit>0?` · ${lang==="he"?"יתרה":"credit"} ₪${c.credit}`:""}
+                        {pendCount>0?` · ${pendCount} ${lang==="he"?"ממתין":"pending"}`:""}
+                      </div>
                     </div>
+                    <span style={{color:TH.textFaint,fontSize:20,flexShrink:0}}>‹</span>
                   </div>
-                  <span style={{color:c.color,fontSize:18}}>‹</span>
                 </div>
               );
             })}
