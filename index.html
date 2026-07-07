@@ -747,10 +747,10 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
             </div>
             {clientPunches.length>0&&(
               <div style={{marginBottom:18}}>
-                <div style={{fontSize:14,fontWeight:700,color:TH.textDim,marginBottom:10}}>🎟 {L.catWordPl==="לקוחות"?"כרטיסיות":"Punch cards"}</div>
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {clientPunches.map(pc=>{ const total=Number(pc.total)||0,used=Number(pc.used)||0,amt=Number(pc.amount)||0,per=total>0?amt/total:0; return (
-                    <div key={pc.id} style={{background:TH.cardBg,border:`1px solid ${c.color}22`,borderRadius:12,padding:"11px 13px"}}>
+                <div style={{fontSize:14,fontWeight:700,color:TH.textDim,marginBottom:10}}>{L.catWordPl==="לקוחות"?"כרטיסיות":"Punch cards"}</div>
+                <div style={{background:TH.cardBg,border:`1px solid ${TH.border2}`,borderRadius:14,overflow:"hidden"}}>
+                  {clientPunches.map((pc,pi)=>{ const total=Number(pc.total)||0,used=Number(pc.used)||0,amt=Number(pc.amount)||0,per=total>0?amt/total:0; return (
+                    <div key={pc.id} style={{padding:"12px 14px",borderTop:pi>0?`0.5px solid ${TH.border}`:"none"}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                         <span style={{fontSize:14,fontWeight:600,color:TH.text}}>{pc.name}</span>
                         <span style={{fontSize:13,color:"#5ab8e0"}}>{used}/{total} {lang==="he"?"נוקבו":"used"}</span>
@@ -763,12 +763,12 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
             )}
             <div style={{fontSize:14,fontWeight:700,color:TH.textDim,marginBottom:10}}>{t.clientHistory}</div>
             {cEvents.length===0?<Empty txt={t.noPastSessions}/>:(
-              <div style={{display:"flex",flexDirection:"column",gap:7}}>
-                {cEvents.map(ev=>{ const d=new Date(ev.date); const pcol=ev.payment==="paid"?"#5ae09a":ev.payment==="pending"?"#e0a85a":TH.textFaint; const price=c.sessionPrice>0?c.sessionPrice:Number(ev.amount||0); const shown=c.sessionPrice>0?Math.min(Number(ev.amount||0),c.sessionPrice):Number(ev.amount||0); return (
-                  <div key={ev.id} onClick={()=>openEdit(ev)} style={{display:"flex",alignItems:"center",gap:11,background:TH.cardBg,border:"1px solid #1c1c28",borderRadius:12,padding:"11px 13px",cursor:"pointer"}}>
+              <div style={{background:TH.cardBg,border:`1px solid ${TH.border2}`,borderRadius:14,overflow:"hidden"}}>
+                {cEvents.map((ev,ei)=>{ const d=new Date(ev.date); const pcol=ev.payment==="paid"?"#5ae09a":ev.payment==="pending"?"#e0a85a":TH.textFaint; const price=c.sessionPrice>0?c.sessionPrice:Number(ev.amount||0); const shown=c.sessionPrice>0?Math.min(Number(ev.amount||0),c.sessionPrice):Number(ev.amount||0); return (
+                  <div key={ev.id} onClick={()=>openEdit(ev)} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 14px",cursor:"pointer",borderTop:ei>0?`0.5px solid ${TH.border}`:"none"}}>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:14,fontWeight:600,color:TH.text}}>{DAYS_HE[d.getDay()]} {d.getDate()} {MONTHS_HE[d.getMonth()]} · {ev.time}</div>
-                      {ev.amount&&ev.payment!=="none"&&<div style={{fontSize:12,color:TH.textDim,marginTop:2}}>₪{shown}{ev.fromCredit?" · 🎫 "+t.fromCreditLabel:""}</div>}
+                      {ev.amount&&ev.payment!=="none"&&<div style={{fontSize:12,color:TH.textDim,marginTop:2}}>₪{shown}{ev.fromCredit?" · "+t.fromCreditLabel:""}</div>}
                     </div>
                     {ev.payment!=="none"&&<span style={{fontSize:12,fontWeight:600,color:pcol}}>{ev.payment==="paid"?t.paid:t.pending}</span>}
                   </div>
@@ -1086,44 +1086,40 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
           <span style={{fontSize:16,fontWeight:700,color:TH.text}}>{t.settings}</span>
           <button onClick={()=>setSettingsModal(false)} style={{background:"none",border:"none",color:TH.textFaint,cursor:"pointer",fontSize:18}}>✕</button>
         </div>
-        <div style={{fontSize:13,fontWeight:600,color:TH.textDim,marginBottom:10}}>{t.accountType}</div>
-        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:6}}>
-          <button onClick={()=>chooseUserType("private")} style={{padding:"14px",borderRadius:14,border:`1px solid ${!isBiz?"#e6a856":TH.border}`,background:!isBiz?"#e6a85618":TH.cardBg,color:TH.text,cursor:"pointer",textAlign:rtl?"right":"left",display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:15,fontWeight:700}}>{t.private}</span>
+        <div style={{fontSize:12,fontWeight:600,color:TH.textFaint,letterSpacing:"0.03em",margin:"2px 4px 7px"}}>{t.accountType}</div>
+        <div style={{background:TH.cardBg,border:`1px solid ${TH.border2}`,borderRadius:14,overflow:"hidden",marginBottom:22}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",gap:10}}>
+            <span style={{fontSize:15,color:TH.text}}>{lang==="he"?"סוג חשבון":"Type"}</span>
+            <div style={{display:"flex",background:TH.panel2,borderRadius:9,padding:3,gap:2,flexShrink:0}}>
+              {[["business",t.business],["private",t.private]].map(([v,lbl])=>{const on=(isBiz?"business":"private")===v;return <button key={v} onClick={()=>chooseUserType(v)} style={{border:"none",borderRadius:7,padding:"6px 13px",fontSize:13,fontWeight:600,cursor:"pointer",background:on?"#e6a856":"transparent",color:on?"#17140f":TH.textDim}}>{lbl}</button>;})}
+            </div>
+          </div>
+        </div>
+        <div style={{fontSize:12,fontWeight:600,color:TH.textFaint,letterSpacing:"0.03em",margin:"2px 4px 7px"}}>{lang==="he"?"העדפות":"Preferences"}</div>
+        <div style={{background:TH.cardBg,border:`1px solid ${TH.border2}`,borderRadius:14,overflow:"hidden",marginBottom:22}}>
+          {[[t.language,[["he","עב"],["en","EN"]],lang,changeLang],[t.defaultCurrency,CURRENCIES.map(cu=>[cu.id,cu.symbol]),defCur,changeCur],[t.fontSize,[["normal",t.fontNormal],["large",t.fontLarge]],fontScale,setFontScale],[t.themeLabel,[["dark",t.themeDark],["light",t.themeLight]],theme,setTheme]].map(([lbl,opts,cur,fn],ri)=>(
+            <div key={lbl} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",gap:10,borderTop:ri>0?`0.5px solid ${TH.border}`:"none"}}>
+              <span style={{fontSize:15,color:TH.text,whiteSpace:"nowrap"}}>{lbl}</span>
+              <div style={{display:"flex",background:TH.panel2,borderRadius:9,padding:3,gap:2,flexShrink:0}}>
+                {opts.map(([v,ol])=>{const on=cur===v;return <button key={v} onClick={()=>fn(v)} style={{border:"none",borderRadius:7,padding:"6px 12px",fontSize:13,fontWeight:600,cursor:"pointer",background:on?"#e6a856":"transparent",color:on?"#17140f":TH.textDim}}>{ol}</button>;})}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:TH.cardBg,border:`1px solid ${TH.border2}`,borderRadius:14,overflow:"hidden",marginBottom:22}}>
+          <button onClick={()=>{setWaErr(null);setWaModal(true);}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 14px",background:"none",border:"none",cursor:"pointer"}}>
+            <span style={{fontSize:15,color:TH.text}}>{t.waConnect}</span>
+            <span style={{display:"flex",alignItems:"center",gap:8}}>{waLink&&waLink.verified?<span style={{fontSize:13,color:"#25D366"}}>{t.waConnected}</span>:null}<span style={{color:TH.textFaint,fontSize:19}}>‹</span></span>
           </button>
-          <button onClick={()=>chooseUserType("business")} style={{padding:"14px",borderRadius:14,border:`1px solid ${isBiz?"#e6a856":TH.border}`,background:isBiz?"#e6a85618":TH.cardBg,color:TH.text,cursor:"pointer",textAlign:rtl?"right":"left",display:"flex",alignItems:"center",gap:10}}>
-            <span style={{fontSize:15,fontWeight:700}}>{t.business}</span>
+          <button onClick={openTutorial} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 14px",background:"none",border:"none",cursor:"pointer",borderTop:`0.5px solid ${TH.border}`}}>
+            <span style={{fontSize:15,color:TH.text}}>{t.tutorial}</span>
+            <span style={{color:TH.textFaint,fontSize:19}}>‹</span>
           </button>
         </div>
-        <div style={{fontSize:11,color:TH.border,marginBottom:16}}>{t.settingsNote}</div>
-        <div style={{fontSize:13,fontWeight:600,color:TH.textDim,marginBottom:10}}>{t.language}</div>
-        <div style={{display:"flex",gap:8,marginBottom:18}}>
-          {[["he","עברית"],["en","English"]].map(([lg,lbl])=>(
-            <button key={lg} onClick={()=>changeLang(lg)} style={{flex:1,padding:"11px",borderRadius:12,border:`1px solid ${lang===lg?"#e6a856":TH.border}`,background:lang===lg?"#e6a85618":TH.cardBg,color:lang===lg?"#e6a856":TH.textDim,cursor:"pointer",fontSize:15,fontWeight:600}}>{lbl}</button>
-          ))}
+        <div style={{background:TH.cardBg,border:`1px solid ${TH.border2}`,borderRadius:14,overflow:"hidden",marginBottom:16}}>
+          <button onClick={logout} style={{width:"100%",padding:"13px 14px",background:"none",border:"none",color:"#e05a5a",cursor:"pointer",fontSize:15,fontWeight:600}}>{t.authLogout}</button>
         </div>
-        <div style={{fontSize:13,fontWeight:600,color:TH.textDim,marginBottom:10}}>{t.defaultCurrency}</div>
-        <div style={{display:"flex",gap:8,marginBottom:20}}>
-          {CURRENCIES.map(cu=>(
-            <button key={cu.id} onClick={()=>changeCur(cu.id)} style={{flex:1,padding:"11px",borderRadius:12,border:`1px solid ${defCur===cu.id?"#e6a856":TH.border}`,background:defCur===cu.id?"#e6a85618":TH.cardBg,color:defCur===cu.id?"#e6a856":TH.textDim,cursor:"pointer",fontSize:15,fontWeight:600}}>{cu.symbol} {cu.label[lang]}</button>
-          ))}
-        </div>
-        <div style={{fontSize:13,fontWeight:600,color:TH.textDim,marginBottom:10}}>{t.fontSize}</div>
-        <div style={{display:"flex",gap:8,marginBottom:20}}>
-          {[["normal",t.fontNormal,15],["large",t.fontLarge,18]].map(([fs,lbl,sz])=>(
-            <button key={fs} onClick={()=>setFontScale(fs)} style={{flex:1,padding:"13px",borderRadius:12,border:`1px solid ${fontScale===fs?"#e6a856":TH.border}`,background:fontScale===fs?"#e6a85618":TH.cardBg,color:fontScale===fs?"#e6a856":TH.textDim,cursor:"pointer",fontSize:sz,fontWeight:600}}>{lbl}</button>
-          ))}
-        </div>
-        <div style={{fontSize:13,fontWeight:600,color:TH.textDim,marginBottom:10}}>{t.themeLabel}</div>
-        <div style={{display:"flex",gap:8,marginBottom:20}}>
-          {[["dark",t.themeDark],["light",t.themeLight]].map(([th,lbl])=>(
-            <button key={th} onClick={()=>setTheme(th)} style={{flex:1,padding:"13px",borderRadius:12,border:`1px solid ${theme===th?"#e6a856":TH.border}`,background:theme===th?"#e6a85618":TH.cardBg,color:theme===th?"#e6a856":TH.textDim,cursor:"pointer",fontSize:15,fontWeight:600}}>{lbl}</button>
-          ))}
-        </div>
-        <button onClick={()=>{setWaErr(null);setWaModal(true);}} style={{width:"100%",padding:"12px",borderRadius:12,border:`1px solid ${waLink&&waLink.verified?"#25D36655":TH.border}`,background:waLink&&waLink.verified?"#25D36618":TH.cardBg,color:waLink&&waLink.verified?"#25D366":TH.textDim,cursor:"pointer",fontSize:15,fontWeight:600,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{waLink&&waLink.verified?t.waConnected:t.waConnect}</button>
-        <button onClick={openTutorial} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid #252535",background:TH.cardBg,color:TH.textDim,cursor:"pointer",fontSize:15,fontWeight:600,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>{t.tutorial}</button>
-        <button onClick={logout} style={{width:"100%",padding:"12px",borderRadius:12,border:"1px solid #e05a5a33",background:"transparent",color:"#e05a5a",cursor:"pointer",fontSize:15,fontWeight:600,marginBottom:10}}>{t.authLogout}</button>
-        <button onClick={()=>setSettingsModal(false)} style={{width:"100%",padding:"10px",borderRadius:10,border:"none",background:"linear-gradient(135deg,#e6a856,#d98a3e)",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:600}}>{t.close}</button>
+        <button onClick={()=>setSettingsModal(false)} style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#e6a856,#d98a3e)",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:600}}>{t.close}</button>
       </div>
     </div>
   )}
