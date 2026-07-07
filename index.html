@@ -165,7 +165,7 @@ TH = dark ? {
   bg:"#f4f2ee", panel:"#ffffff", panel2:"#faf8f4", border:"#d8d4cc", border2:"#e6e2da",
   text:"#1a1a22", textDim:"#666", textFaint:"#999", inputBg:"#ffffff", cardBg:"#ffffff", todayBg:"#fdeede", barBg:"rgba(250,250,252,0.72)"
 };
-useEffect(()=>{ try{ localStorage.setItem("fontscale",fontScale); }catch{} },[fontScale]);
+useEffect(()=>{ try{ localStorage.setItem("fontscale",fontScale); document.documentElement.style.zoom=fontScale==="large"?"1.2":"1"; }catch{} },[fontScale]);
 S={
 navBtn:{padding:"10px 17px",borderRadius:12,border:"none",background:TH.border2,color:TH.textDim,cursor:"pointer",fontSize:16,minWidth:44,transition:"all .15s ease"},
 addBtn:{padding:"12px 20px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#e6a856,#d98a3e)",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:600,transition:"all .15s ease"},
@@ -510,14 +510,7 @@ if(showOnboarding){
   );
 }
 return (
-<div style={{minHeight:"100vh",background:TH.bg,color:TH.text,zoom:fontScale==="large"?1.18:1}}>
-<header style={{background:TH.barBg,backdropFilter:"saturate(180%) blur(20px)",WebkitBackdropFilter:"saturate(180%) blur(20px)",borderBottom:`0.5px solid ${TH.border}`,padding:"15px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-<div style={{display:"flex",alignItems:"center",gap:9}}>
-<div style={{width:32,height:32,borderRadius:9,background:"linear-gradient(135deg,#e6a856,#d98a3e)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>✦</div>
-<span style={{fontSize:16,fontWeight:700,color:TH.text}}>{t.appName}</span>
-</div>
-
-</header>
+<div style={{minHeight:"100vh",background:TH.bg,color:TH.text}}>
 <nav style={{position:"fixed",left:0,right:0,bottom:0,zIndex:100,background:TH.barBg,backdropFilter:"saturate(180%) blur(20px)",WebkitBackdropFilter:"saturate(180%) blur(20px)",borderTop:`0.5px solid ${TH.border}`,display:"flex",justifyContent:"space-around",alignItems:"stretch",padding:"7px 4px calc(9px + env(safe-area-inset-bottom))",boxShadow:"0 -8px 24px -16px rgba(0,0,0,.5)"}}>
 {[["cal",lang==="he"?"יומן":"Calendar"],...(isBiz?[["clients",lang==="he"?"לקוחות":"Clients"]]:[["payments",lang==="he"?"תשלומים":"Payments"]]),["punches",lang==="he"?"כרטיסיות":"Cards"],["__settings",lang==="he"?"הגדרות":"Settings"]].map(([v,lbl])=>{
 const active=v!=="__settings"&&view===v;
@@ -529,7 +522,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
 </button>);
 })}
 </nav>
-  <div style={{maxWidth:840,margin:"0 auto",padding:"16px 13px calc(100px + env(safe-area-inset-bottom))"}}>
+  <div style={{maxWidth:840,margin:"0 auto",padding:"calc(16px + env(safe-area-inset-top)) 13px calc(100px + env(safe-area-inset-bottom))"}}>
     {view==="cal" && <>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div id="tut-calmode" style={{display:"flex",gap:4}}>
