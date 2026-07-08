@@ -165,7 +165,15 @@ TH = dark ? {
   bg:"#f4f2ee", panel:"#ffffff", panel2:"#faf8f4", border:"#d8d4cc", border2:"#e6e2da",
   text:"#1a1a22", textDim:"#666", textFaint:"#999", inputBg:"#ffffff", cardBg:"#ffffff", todayBg:"#fdeede", barBg:"rgba(250,250,252,0.72)"
 };
-useEffect(()=>{ try{ localStorage.setItem("fontscale",fontScale); document.documentElement.style.zoom=fontScale==="large"?"1.2":"1"; }catch{} },[fontScale]);
+const contentRef=useRef(null);
+useEffect(()=>{ try{ localStorage.setItem("fontscale",fontScale); }catch{}
+  const el=contentRef.current; if(!el) return;
+  const S=fontScale==="large"?1.15:1;
+  const apply=()=>{ if(S===1){ el.style.transform=""; el.style.width=""; el.style.marginBottom=""; } else { el.style.transformOrigin="top center"; el.style.transform="scale("+S+")"; el.style.width=(100/S)+"%"; const lh=el.getBoundingClientRect().height/S; el.style.marginBottom=(lh*(S-1))+"px"; } };
+  apply();
+  let ro; try{ ro=new ResizeObserver(apply); ro.observe(el); }catch(e){}
+  return ()=>{ try{ ro&&ro.disconnect(); }catch(e){} };
+},[fontScale]);
 S={
 navBtn:{padding:"10px 17px",borderRadius:12,border:"none",background:TH.border2,color:TH.textDim,cursor:"pointer",fontSize:16,minWidth:44,transition:"all .15s ease"},
 addBtn:{padding:"12px 20px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#e6a856,#d98a3e)",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:600,transition:"all .15s ease"},
@@ -522,7 +530,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
 </button>);
 })}
 </nav>
-  <div style={{maxWidth:840,margin:"0 auto",padding:"calc(16px + env(safe-area-inset-top)) 13px calc(100px + env(safe-area-inset-bottom))"}}>
+  <div ref={contentRef} style={{maxWidth:840,margin:"0 auto",padding:"calc(16px + env(safe-area-inset-top)) 13px calc(100px + env(safe-area-inset-bottom))"}}>
     {view==="cal" && <>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div id="tut-calmode" style={{display:"flex",gap:4}}>
