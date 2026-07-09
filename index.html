@@ -174,6 +174,9 @@ useEffect(()=>{ try{ localStorage.setItem("fontscale",fontScale); }catch{}
   let ro; try{ ro=new ResizeObserver(apply); ro.observe(el); }catch(e){}
   return ()=>{ try{ ro&&ro.disconnect(); }catch(e){} };
 },[fontScale]);
+const swipeRef=useRef(null);
+const onSwipeStart=e=>{ const tt=e.touches&&e.touches[0]; if(tt)swipeRef.current={x:tt.clientX,y:tt.clientY}; };
+const onSwipeEnd=(e,onH,onV)=>{ const st=swipeRef.current; swipeRef.current=null; if(!st)return; const cc=e.changedTouches&&e.changedTouches[0]; if(!cc)return; const dx=cc.clientX-st.x,dy=cc.clientY-st.y,adx=Math.abs(dx),ady=Math.abs(dy); if(adx<55&&ady<55)return; if(adx>ady){ onH&&onH(dx); } else { onV&&onV(dy); } };
 S={
 navBtn:{padding:"10px 17px",borderRadius:12,border:"none",background:TH.border2,color:TH.textDim,cursor:"pointer",fontSize:16,minWidth:44,transition:"all .15s ease"},
 addBtn:{padding:"12px 20px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#0a84ff,#0060df)",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:600,transition:"all .15s ease"},
@@ -531,7 +534,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
 </button>);
 })}
 </nav>
-  <div ref={contentRef} style={{maxWidth:840,margin:"0 auto",padding:"calc(16px + env(safe-area-inset-top)) 13px calc(100px + env(safe-area-inset-bottom))"}}>
+  <div ref={contentRef} onTouchStart={onSwipeStart} onTouchEnd={e=>onSwipeEnd(e,dx=>{if(dx>0&&selClient){setSelClient(null);setClientSearch("");}})} style={{maxWidth:840,margin:"0 auto",padding:"calc(16px + env(safe-area-inset-top)) 13px calc(100px + env(safe-area-inset-bottom))"}}>
     {view==="cal" && <>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div id="tut-calmode" style={{display:"flex",gap:4}}>
@@ -547,7 +550,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
           <span style={{fontSize:13,color:TH.textFaint}}>{new Date(wDates[0]).getDate()}–{new Date(wDates[6]).getDate()} {MONTHS_HE[new Date(wDates[6]).getMonth()]}</span>
           <button onClick={()=>setBase(addDays(base,7))} style={S.navBtn}>›</button>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:16}}>
+        <div onTouchStart={onSwipeStart} onTouchEnd={e=>onSwipeEnd(e,dx=>setBase(addDays(base,dx<0?7:-7)))} style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:16}}>
           {wDates.map(date=>{
             const dayEvs=events.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time));
             const isToday=date===todayStr, d=new Date(date);
@@ -582,7 +585,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:0,marginBottom:2}}>
           {DAYS_HE.map(d=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:600,color:TH.textFaint,padding:"4px 0"}}>{d}</div>)}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:0,marginBottom:18}}>
+        <div onTouchStart={onSwipeStart} onTouchEnd={e=>onSwipeEnd(e,null,dy=>setBMonth(b=>{const up=dy<0;const m=up?(b.m===11?0:b.m+1):(b.m===0?11:b.m-1);const y=up?(b.m===11?b.y+1:b.y):(b.m===0?b.y-1:b.y);return{y,m};}))} style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:0,marginBottom:18}}>
           {mCells.map((date,i)=>{
             if(!date) return <div key={"_"+i} style={{borderTop:`0.5px solid ${TH.border}`}}/>;
             const dayEvs=events.filter(e=>e.date===date),isToday=date===todayStr,d=new Date(date);
