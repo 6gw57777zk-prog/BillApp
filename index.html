@@ -17,7 +17,6 @@
   input, textarea, select { font-size: 17px !important; }
   button { -webkit-user-select: none; user-select: none; }
   ::-webkit-scrollbar { display: none; }
-  @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(-10px);} to { opacity:1; transform:translateX(-50%) translateY(0);} }
 </style>
 </head>
 <body>
@@ -175,6 +174,9 @@ useEffect(()=>{ try{ localStorage.setItem("fontscale",fontScale); }catch{}
   let ro; try{ ro=new ResizeObserver(apply); ro.observe(el); }catch(e){}
   return ()=>{ try{ ro&&ro.disconnect(); }catch(e){} };
 },[fontScale]);
+const swipeRef=useRef(null);
+const onSwipeStart=e=>{ const tt=e.touches&&e.touches[0]; if(tt)swipeRef.current={x:tt.clientX,y:tt.clientY}; };
+const onSwipeEnd=(e,onH,onV)=>{ const st=swipeRef.current; swipeRef.current=null; if(!st)return; const cc=e.changedTouches&&e.changedTouches[0]; if(!cc)return; const dx=cc.clientX-st.x,dy=cc.clientY-st.y,adx=Math.abs(dx),ady=Math.abs(dy); if(adx<55&&ady<55)return; if(adx>ady){ onH&&onH(dx); } else { onV&&onV(dy); } };
 S={
 navBtn:{padding:"10px 17px",borderRadius:12,border:"none",background:TH.border2,color:TH.textDim,cursor:"pointer",fontSize:16,minWidth:44,transition:"all .15s ease"},
 addBtn:{padding:"12px 20px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#0a84ff,#0060df)",color:"#fff",cursor:"pointer",fontSize:15,fontWeight:600,transition:"all .15s ease"},
@@ -254,20 +256,8 @@ async function loadAll(uid){
     let catsArr=(cats.data||[]).map(c=>({id:c.id,label:c.label,emoji:c.emoji,color:c.color,kind:c.kind||"client",sessionPrice:Number(c.session_price||0),credit:Number(c.credit_balance||0)}));
     let evsArr=(evs.data||[]).map(dbToEvent);
     let punchArr=(pcs.data||[]).map(dbToPunch);
-    // --- ניקוב כרטיסיות לאירועים שהתרחשו (פעם אחת לכל אירוע) ---
-    const t=today();
-    const toPunch=evsArr.filter(e=>!e.applied && e.date<=t).sort((a,b)=>a.date.localeCompare(b.date));
-    for(const ev of toPunch){
-      const ap=punchArr.find(p=>p.category===ev.category&&(p.used||0)<p.total);
-      if(ap){ ap.used=(ap.used||0)+1; await sb.from("punch_cards").update({used:ap.used}).eq("id",ap.id); }
-      ev.applied=true;
-      await sb.from("events").update({applied:true}).eq("id",ev.id);
-    }
-    // --- יישוב חשבון קרדיט לכל לקוח (דטרמיניסטי, ללא כפילויות) ---
-    for(const cat of catsArr){
-      if((cat.kind||"client")!=="client") continue;
-      await settleClientArrays(cat,evsArr);
-    }
+    // הניקוב והקרדיט מנוהלים כעת בפונקציות שבמסד הנתונים (מקור אמת אחד).
+    // האפליקציה רק *קוראת* את המצב — היא לא מחשבת אותו מחדש ולא דורסת אותו.
     setCategories(catsArr);
     _cats=catsArr;
     setEvents(evsArr);
@@ -354,15 +344,9 @@ const [fCat,setFCat]=useState("all");
 const [fPay,setFPay]=useState("all");
 const [calPayFilter,setCalPayFilter]=useState("all");
 const [deleteConfirm,setDeleteConfirm]=useState(null);
-const [toastMsg,setToastMsg]=useState(null);
-const toastTimer=useRef(null);
-function flash(msg){ setToastMsg(msg); if(toastTimer.current) clearTimeout(toastTimer.current); toastTimer.current=setTimeout(()=>setToastMsg(null),1900); }
-const MSG = lang==="he"
-  ? {added:"נוסף בהצלחה ✓", saved:"נשמר בהצלחה ✓", deleted:"נמחק ✓", updated:"עודכן ✓", client:"הלקוח נוצר ✓", recur:n=>`נוצרו ${n} מועדים ✓`, missingTitle:"יש לבחור לקוח או למלא כותרת"}
-  : {added:"Added ✓", saved:"Saved ✓", deleted:"Deleted ✓", updated:"Updated ✓", client:"Client created ✓", recur:n=>`${n} dates created ✓`, missingTitle:"Pick a client or enter a title"};
 useEffect(()=>{ _cats=categories; },[categories]);
 const C=id=>categories.find(c=>c.id===id)||{id:"?",label:"?",color:TH.textFaint,emoji:"📌"};
-async function addCategory(kind){ if(!nCat.label.trim()||!uid) return; const k=kind||(isBiz?"client":"personal"); const price=k==="client"?(Number(nCat.price)||0):0; const payload={user_id:uid,label:nCat.label.trim(),emoji:nCat.emoji,color:nCat.color,kind:k,session_price:price}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return; } setCategories(cs=>[...cs,{id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||k,sessionPrice:Number(data.session_price||0),credit:0}]); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); flash(MSG.added); }
+async function addCategory(kind){ if(!nCat.label.trim()||!uid) return; const k=kind||(isBiz?"client":"personal"); const price=k==="client"?(Number(nCat.price)||0):0; const payload={user_id:uid,label:nCat.label.trim(),emoji:nCat.emoji,color:nCat.color,kind:k,session_price:price}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return; } setCategories(cs=>[...cs,{id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||k,sessionPrice:Number(data.session_price||0),credit:0}]); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); }
 async function updateCategory(){
   if(!catEditId||!nCat.label.trim())return;
   const price=Number(nCat.price)||0;
@@ -371,53 +355,72 @@ async function updateCategory(){
   if(error){ console.error(error); return; }
   setCategories(cs=>cs.map(c=>c.id===catEditId?{...c,label:patch.label,emoji:patch.emoji,color:patch.color,sessionPrice:price}:c));
   if(_cats){ const i=_cats.findIndex(c=>c.id===catEditId); if(i>=0)_cats[i]={..._cats[i],label:patch.label,emoji:patch.emoji,color:patch.color,sessionPrice:price}; }
-  const ed=catEditId; setCatEditId(null); setCatModal(false); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); flash(MSG.saved); await settleClientState(ed);
+  const ed=catEditId; setCatEditId(null); setCatModal(false); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); await refreshClient(ed);
 }
 // יצירה מהירה של קטגוריה/לקוח מתוך טופס האירוע (מחזיר את הרשומה החדשה)
-async function saveClientPrice(id,price){ const p=Number(price)||0; const {error}=await sb.from("categories").update({session_price:p}).eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.map(c=>c.id===id?{...c,sessionPrice:p}:c)); if(_cats){const i=_cats.findIndex(c=>c.id===id); if(i>=0)_cats[i]={..._cats[i],sessionPrice:p};} setCatEdit(null); await settleClientState(id); }
+async function saveClientPrice(id,price){ const p=Number(price)||0; const {error}=await sb.from("categories").update({session_price:p}).eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.map(c=>c.id===id?{...c,sessionPrice:p}:c)); if(_cats){const i=_cats.findIndex(c=>c.id===id); if(i>=0)_cats[i]={..._cats[i],sessionPrice:p};} setCatEdit(null); await refreshClient(id); }
 async function quickCreateCategory(label,kind){ if(!label.trim()||!uid) return null; const color=PALETTE[Math.floor(Math.random()*PALETTE.length)]; const emoji=kind==="client"?"🧑":"⭐"; const payload={user_id:uid,label:label.trim(),emoji,color,kind,session_price:0}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return null; } const cat={id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||kind,sessionPrice:0,credit:0}; setCategories(cs=>[...cs,cat]); return cat; }
-async function deleteCategory(id){ const {error}=await sb.from("categories").delete().eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.filter(c=>c.id!==id)); flash(MSG.deleted); }
+async function deleteCategory(id){ const {error}=await sb.from("categories").delete().eq("id",id); if(error){ console.error(error); return; } setCategories(cs=>cs.filter(c=>c.id!==id)); }
 // קטגוריות מסוננות לפי סוג (ללקוח/אישי)
 const clientCats=categories.filter(c=>(c.kind||"client")==="client");
 const personalCats=categories.filter(c=>c.kind==="personal");
 function getSuggest(val){ if(!val||val.length<2) return null; const lo=val.toLowerCase(); const hits=events.filter(e=>e.title.toLowerCase().includes(lo)); return hits.length?hits.sort((a,b)=>b.date.localeCompare(a.date))[0]:null; }
-function openNew(date){ setDayModal(null); setSettingsModal(false); setCatModal(false); setPunchModal(false); setEditing(null); setForm({...EMPTY_EV,date:date||today(),category:"",evMode:isBiz?"client":"personal",currency:defCur}); setSuggest(null); setCustSearch(""); setModal(true); }
+function openNew(date){ setEditing(null); setForm({...EMPTY_EV,date:date||today(),category:"",evMode:isBiz?"client":"personal",currency:defCur}); setSuggest(null); setCustSearch(""); setModal(true); }
 function openEdit(ev){ const m=ev.category&&personalCats.find(c=>c.id===ev.category)?"personal":(isBiz?"client":"personal"); setEditing(ev.id); setForm({...EMPTY_EV,...ev,evMode:m,currency:ev.currency||"ILS"}); setSuggest(null); setCustSearch(""); setModal(true); }
 async function pickCustomer(c){ setForm(f=>({...f,category:c.id,title:c.label,amount:(f.amount===""||f.amount==null)&&c.sessionPrice>0?String(c.sessionPrice):f.amount})); setCustSearch(""); }
-async function createClientInline(name){ const cat=await quickCreateCategory(name,"client"); if(cat){ setForm(f=>({...f,category:cat.id,title:cat.label})); setCustSearch(""); flash(MSG.client); } }
-async function saveEvent(){ if(!uid) return;
-  if(!form.title.trim()){ flash(MSG.missingTitle); return; }
+async function createClientInline(name){ const cat=await quickCreateCategory(name,"client"); if(cat){ setForm(f=>({...f,category:cat.id,title:cat.label})); setCustSearch(""); } }
+async function saveEvent(){ if(!form.title.trim()||!uid) return;
   if(editing){
     const {error}=await sb.from("events").update(eventToDb(form,uid)).eq("id",editing);
     if(error){ console.error(error); return; }
     setEvents(es=>es.map(e=>e.id===editing?{...form,id:editing}:e));
-    flash(MSG.saved);
   } else {
-    // בנה את האירוע הבסיסי + כל המופעים החוזרים, והכנס בבת אחת
-    const rows=[]; const baseRow=eventToDb(form,uid);
+    const baseRow=eventToDb(form,uid);
     const recurs=makeRecurring({...form},"tmp");
-    if(recurs.length){
-      // נכניס קודם את הבסיס כדי לקבל id, ואז נסמן את כל הקבוצה תחת אותו id
-      const {data:baseData,error:e1}=await sb.from("events").insert(baseRow).select().single();
-      if(e1){ console.error(e1); return; }
-      const gid=baseData.id;
-      await sb.from("events").update({recur_group_id:gid}).eq("id",gid);
-      const recurRows=recurs.map(r=>({...eventToDb(r,uid),recur_group_id:gid}));
-      const {data:recurData,error:e2}=await sb.from("events").insert(recurRows).select();
-      if(e2){ console.error(e2); }
-      const newEvs=[dbToEvent({...baseData,recur_group_id:gid}),...((recurData||[]).map(dbToEvent))];
+    if(form.category){
+      // יש לקוח -> יוצרים דרך הפונקציה במסד, שמטפלת בניקוב/קרדיט/מחיר קבוע
+      const mk=async(fm)=>{
+        const {data,error}=await sb.rpc("create_event_with_logic",{
+          p_user_id:uid, p_category_id:fm.category, p_title:fm.title||"",
+          p_event_date:fm.date, p_event_time:fm.time,
+          p_amount:(fm.amount===""||fm.amount==null)?null:Number(fm.amount),
+          p_payment:fm.payment||"pending"
+        });
+        if(error){ console.error(error); return null; }
+        return data;
+      };
+      const baseData=await mk(form);
+      if(!baseData){ setModal(false); return; }
+      let newEvs=[dbToEvent(baseData)];
+      if(recurs.length){
+        const gid=baseData.id;
+        await sb.from("events").update({recur_group_id:gid}).eq("id",gid);
+        for(const r of recurs){
+          const d=await mk(r);
+          if(d){ await sb.from("events").update({recur_group_id:gid}).eq("id",d.id); newEvs.push(dbToEvent({...d,recur_group_id:gid})); }
+        }
+        newEvs[0]={...newEvs[0],recurGroupId:gid};
+      }
       setEvents(es=>[...es,...newEvs]);
-      flash(MSG.recur(newEvs.length));
+      await refreshClient(form.category);
     } else {
-      const {data,error}=await sb.from("events").insert(baseRow).select().single();
-      if(error){ console.error(error); return; }
-      const nev=dbToEvent(data); setEvents(es=>[...es,nev]); await applyPunchForNew(nev);
-      flash(MSG.added);
+      // אירוע ללא לקוח (אישי) -> אין ניקוב/קרדיט, הכנסה רגילה
+      if(recurs.length){
+        const {data:baseData,error:e1}=await sb.from("events").insert(baseRow).select().single();
+        if(e1){ console.error(e1); setModal(false); return; }
+        const gid=baseData.id;
+        await sb.from("events").update({recur_group_id:gid}).eq("id",gid);
+        const recurRows=recurs.map(r=>({...eventToDb(r,uid),recur_group_id:gid}));
+        const {data:recurData}=await sb.from("events").insert(recurRows).select();
+        setEvents(es=>[...es,dbToEvent({...baseData,recur_group_id:gid}),...((recurData||[]).map(dbToEvent))]);
+      } else {
+        const {data,error}=await sb.from("events").insert(baseRow).select().single();
+        if(error){ console.error(error); setModal(false); return; }
+        setEvents(es=>[...es,dbToEvent(data)]);
+      }
     }
   }
   setModal(false);
-  // יישוב חשבון הקרדיט של הלקוח אחרי כל שינוי
-  await settleClientState(form.category);
 }
 // עוטף את settleClientArrays לעבודה מול ה-state של React
 async function settleClientState(catId){
@@ -434,6 +437,23 @@ async function settleClientState(catId){
   setEvents(es=>es.map(e=>{ const u=evsArr.find(x=>x.id===e.id); return u?{...e,payment:u.payment,fromCredit:u.fromCredit}:e; }));
   if(_cats){ const i=_cats.findIndex(c=>c.id===catId); if(i>=0) _cats[i]={..._cats[i],credit:catObj.credit}; }
 }
+// קורא מהמסד את המצב המעודכן של לקוח (קרדיט) ושל הכרטיסיות והפגישות שלו,
+// אחרי שפונקציה במסד שינתה אותם. האפליקציה רק קוראת - לא מחשבת.
+async function refreshClient(catId){
+  if(!catId) return;
+  const [{data:cRow},{data:pRows},{data:eRows}]=await Promise.all([
+    sb.from("categories").select("*").eq("id",catId).maybeSingle(),
+    sb.from("punch_cards").select("*").eq("category_id",catId),
+    sb.from("events").select("*").eq("category_id",catId)
+  ]);
+  if(cRow){
+    const cr=Number(cRow.credit_balance||0);
+    setCategories(cs=>cs.map(c=>c.id===catId?{...c,credit:cr}:c));
+    if(_cats){ const i=_cats.findIndex(c=>c.id===catId); if(i>=0)_cats[i]={..._cats[i],credit:cr}; }
+  }
+  if(pRows) setPunches(ps=>ps.map(p=>{ const u=pRows.find(x=>x.id===p.id); return u?{...p,used:u.used||0}:p; }));
+  if(eRows) setEvents(es=>es.map(e=>{ const u=eRows.find(x=>x.id===e.id); return u?dbToEvent(u):e; }));
+}
 async function applyPunchForNew(ev){
   if(!ev||!ev.category||ev.applied)return;
   if(ev.date>today())return;
@@ -447,16 +467,26 @@ async function applyPunchForNew(ev){
 }
 async function deleteEvent(id){
   const ev=events.find(e=>e.id===id);
-  // אם האירוע כבר נוקב בכרטיסייה (התרחש) — נבטל ניקוב אחד
-  if(ev && ev.applied){
-    const ap=punches.find(p=>p.category===ev.category&&(p.used||0)>0);
-    if(ap){ const nu=Math.max((ap.used||0)-1,0); await sb.from("punch_cards").update({used:nu}).eq("id",ap.id); setPunches(ps=>ps.map(p=>p.id===ap.id?{...p,used:nu}:p)); }
+  if(ev && ev.category){
+    // הפונקציה במסד מחזירה ניקוב וקרדיט אוטומטית
+    const {error}=await sb.rpc("delete_event_with_logic",{p_user_id:uid,p_event_id:id});
+    if(error){ console.error(error); return; }
+    setEvents(es=>es.filter(e=>e.id!==id)); setDeleteConfirm(null); setModal(false);
+    await refreshClient(ev.category);
+  } else {
+    const {error}=await sb.from("events").delete().eq("id",id);
+    if(error){ console.error(error); return; }
+    setEvents(es=>es.filter(e=>e.id!==id)); setDeleteConfirm(null); setModal(false);
   }
-  const {error}=await sb.from("events").delete().eq("id",id); if(error){ console.error(error); return; }
-  setEvents(es=>es.filter(e=>e.id!==id)); setDeleteConfirm(null); setModal(false); flash(MSG.deleted);
-  if(ev) await settleClientState(ev.category);
 }
-async function togglePay(id,e){ e&&e.stopPropagation(); const ev=events.find(x=>x.id===id); if(!ev) return; const nxt=ev.payment==="pending"?"paid":ev.payment==="paid"?"pending":ev.payment; if(nxt===ev.payment) return; setEvents(es=>es.map(x=>x.id===id?{...x,payment:nxt,fromCredit:false}:x)); const {error}=await sb.from("events").update({payment:nxt,from_credit:false}).eq("id",id); if(error){ console.error(error); setEvents(es=>es.map(x=>x.id===id?{...x,payment:ev.payment}:x)); return; } flash(MSG.updated); await settleClientState(ev.category); }
+async function togglePay(id,e){ e&&e.stopPropagation(); const ev=events.find(x=>x.id===id); if(!ev) return; const nxt=ev.payment==="pending"?"paid":ev.payment==="paid"?"pending":ev.payment; if(nxt===ev.payment) return; setEvents(es=>es.map(x=>x.id===id?{...x,payment:nxt,fromCredit:false}:x)); if(ev.category){
+    const {error}=await sb.rpc("update_event_with_logic",{p_user_id:uid,p_event_id:id,p_payment:nxt});
+    if(error){ console.error(error); setEvents(es=>es.map(x=>x.id===id?{...x,payment:ev.payment}:x)); return; }
+    await refreshClient(ev.category);
+  } else {
+    const {error}=await sb.from("events").update({payment:nxt,from_credit:false}).eq("id",id);
+    if(error){ console.error(error); setEvents(es=>es.map(x=>x.id===id?{...x,payment:ev.payment}:x)); return; }
+  } }
 function openNewPunch(){ setPEditing(null); setPForm({name:"",total:10,category:isBiz?"":(categories[0]?.id||""),amount:""}); setPSearch(""); setPunchModal(true); }
 function openEditPunch(pc){ setPEditing(pc.id); setPForm({name:pc.name,total:pc.total,category:pc.category,amount:pc.amount||""}); setPSearch(""); setPunchModal(true); }
 function pickPunchCustomer(c){ setPForm(f=>({...f,category:c.id,name:c.label})); setPSearch(""); }
@@ -469,11 +499,11 @@ async function savePunch(){ const name=isBiz?(C(pForm.category).id!=="?"?C(pForm
     const {data,error}=await sb.from("punch_cards").insert({...payload,used:0}).select().single(); if(error){ console.error(error); return; }
     setPunches(ps=>[...ps,dbToPunch(data)]);
   }
-  setPunchModal(false); setPEditing(null); setPForm({name:"",total:10,category:categories[0]?.id||"",amount:""}); flash(pEditing?MSG.saved:MSG.added);
+  setPunchModal(false); setPEditing(null); setPForm({name:"",total:10,category:categories[0]?.id||"",amount:""});
 }
 async function punchUse(id){ const p=punches.find(x=>x.id===id); if(!p) return; const nu=Math.min((p.used||0)+1,p.total); setPunches(ps=>ps.map(x=>x.id===id?{...x,used:nu}:x)); const {error}=await sb.from("punch_cards").update({used:nu}).eq("id",id); if(error){ console.error(error); setPunches(ps=>ps.map(x=>x.id===id?{...x,used:p.used}:x)); } }
 async function punchUndo(id){ const p=punches.find(x=>x.id===id); if(!p) return; const nu=Math.max((p.used||0)-1,0); setPunches(ps=>ps.map(x=>x.id===id?{...x,used:nu}:x)); const {error}=await sb.from("punch_cards").update({used:nu}).eq("id",id); if(error){ console.error(error); setPunches(ps=>ps.map(x=>x.id===id?{...x,used:p.used}:x)); } }
-async function punchDel(id){ const {error}=await sb.from("punch_cards").delete().eq("id",id); if(error){ console.error(error); return; } setPunches(ps=>ps.filter(p=>p.id!==id)); flash(MSG.deleted); }
+async function punchDel(id){ const {error}=await sb.from("punch_cards").delete().eq("id",id); if(error){ console.error(error); return; } setPunches(ps=>ps.filter(p=>p.id!==id)); }
 const wDates=weekOf(base), mCells=monthGrid(bMonth.y,bMonth.m), todayStr=today();
 const activePunch=cat=>punches.find(p=>p.category===cat&&(p.used||0)<p.total);
 const isPast=e=>e.date<=todayStr;
@@ -542,7 +572,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
 </button>);
 })}
 </nav>
-  <div ref={contentRef} style={{maxWidth:840,margin:"0 auto",padding:"calc(16px + env(safe-area-inset-top)) 13px calc(100px + env(safe-area-inset-bottom))"}}>
+  <div ref={contentRef} onTouchStart={onSwipeStart} onTouchEnd={e=>onSwipeEnd(e,dx=>{if(dx>0&&selClient){setSelClient(null);setClientSearch("");}})} style={{maxWidth:840,margin:"0 auto",padding:"calc(16px + env(safe-area-inset-top)) 13px calc(100px + env(safe-area-inset-bottom))"}}>
     {view==="cal" && <>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <div id="tut-calmode" style={{display:"flex",gap:4}}>
@@ -550,7 +580,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
             <button key={m} onClick={()=>setCalMode(m)} style={{padding:"8px 16px",borderRadius:12,border:"1px solid #252535",background:calMode===m?TH.border2:"transparent",color:calMode===m?TH.text:TH.textDim,cursor:"pointer",fontSize:15,fontWeight:calMode===m?600:400,transition:"all .15s ease"}}>{l}</button>
           ))}
         </div>
-        <button id="tut-add" type="button" onClick={()=>openNew()} style={S.addBtn}>{t.add}</button>
+        <button id="tut-add" onClick={()=>openNew()} style={S.addBtn}>{t.add}</button>
       </div>
       {calMode==="week" && <>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -558,7 +588,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
           <span style={{fontSize:13,color:TH.textFaint}}>{new Date(wDates[0]).getDate()}–{new Date(wDates[6]).getDate()} {MONTHS_HE[new Date(wDates[6]).getMonth()]}</span>
           <button onClick={()=>setBase(addDays(base,7))} style={S.navBtn}>›</button>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:16}}>
+        <div onTouchStart={onSwipeStart} onTouchEnd={e=>onSwipeEnd(e,dx=>setBase(addDays(base,dx<0?7:-7)))} style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:16}}>
           {wDates.map(date=>{
             const dayEvs=events.filter(e=>e.date===date).sort((a,b)=>a.time.localeCompare(b.time));
             const isToday=date===todayStr, d=new Date(date);
@@ -578,10 +608,10 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
         <div style={{fontSize:14,fontWeight:600,color:TH.textDim,marginBottom:9}}>{t.weekEvents}</div>
         <PayBar/>
         <div style={{display:"flex",flexDirection:"column",gap:7}}>
-          {wDates.flatMap(d=>events.filter(e=>e.date===d&&e.date<=todayStr&&(calPayFilter==="all"||e.payment===calPayFilter))).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)).map(ev=>(
+          {wDates.flatMap(d=>events.filter(e=>e.date===d&&(calPayFilter==="all"||e.payment===calPayFilter))).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)).map(ev=>(
             <EvRow key={ev.id} ev={ev} cat={C} onEdit={openEdit} onPay={togglePay} onDelete={id=>setDeleteConfirm({kind:"event",id})} days={DAYS_HE} months={MONTHS_HE} payLabel={PAYLABEL} fcLabel={t.fromCreditLabel}/>
           ))}
-          {wDates.flatMap(d=>events.filter(e=>e.date===d&&e.date<=todayStr&&(calPayFilter==="all"||e.payment===calPayFilter))).length===0&&<Empty txt={categories.length?t.clickDayToAdd:t.createFirst(L.catWord)}/>}
+          {wDates.flatMap(d=>events.filter(e=>e.date===d&&(calPayFilter==="all"||e.payment===calPayFilter))).length===0&&<Empty txt={categories.length?t.clickDayToAdd:t.createFirst(L.catWord)}/>}
         </div>
       </>}
       {calMode==="month" && <>
@@ -593,7 +623,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
         <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:0,marginBottom:2}}>
           {DAYS_HE.map(d=><div key={d} style={{textAlign:"center",fontSize:11,fontWeight:600,color:TH.textFaint,padding:"4px 0"}}>{d}</div>)}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:0,marginBottom:18}}>
+        <div onTouchStart={onSwipeStart} onTouchEnd={e=>onSwipeEnd(e,null,dy=>setBMonth(b=>{const up=dy<0;const m=up?(b.m===11?0:b.m+1):(b.m===0?11:b.m-1);const y=up?(b.m===11?b.y+1:b.y):(b.m===0?b.y-1:b.y);return{y,m};}))} style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:0,marginBottom:18}}>
           {mCells.map((date,i)=>{
             if(!date) return <div key={"_"+i} style={{borderTop:`0.5px solid ${TH.border}`}}/>;
             const dayEvs=events.filter(e=>e.date===date),isToday=date===todayStr,d=new Date(date);
@@ -613,8 +643,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
         <div style={{fontSize:14,fontWeight:600,color:TH.textDim,marginBottom:9}}>{t.monthEvents}</div>
         <PayBar/>
         <div style={{display:"flex",flexDirection:"column",gap:7}}>
-          {events.filter(e=>{const d=new Date(e.date);return d.getFullYear()===bMonth.y&&d.getMonth()===bMonth.m&&e.date<=todayStr&&(calPayFilter==="all"||e.payment===calPayFilter);}).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)).map(ev=><EvRow key={ev.id} ev={ev} cat={C} onEdit={openEdit} onPay={togglePay} onDelete={id=>setDeleteConfirm({kind:"event",id})} days={DAYS_HE} months={MONTHS_HE} payLabel={PAYLABEL} fcLabel={t.fromCreditLabel}/>)}
-          {events.filter(e=>{const d=new Date(e.date);return d.getFullYear()===bMonth.y&&d.getMonth()===bMonth.m&&e.date<=todayStr&&(calPayFilter==="all"||e.payment===calPayFilter);}).length===0&&<Empty txt={categories.length?t.clickDayToAdd:t.createFirst(L.catWord)}/>}
+          {events.filter(e=>{const d=new Date(e.date);return d.getFullYear()===bMonth.y&&d.getMonth()===bMonth.m&&(calPayFilter==="all"||e.payment===calPayFilter);}).sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time)).map(ev=><EvRow key={ev.id} ev={ev} cat={C} onEdit={openEdit} onPay={togglePay} onDelete={id=>setDeleteConfirm({kind:"event",id})} days={DAYS_HE} months={MONTHS_HE} payLabel={PAYLABEL} fcLabel={t.fromCreditLabel}/>)}
         </div>
       </>}
     </>}
@@ -1186,9 +1215,6 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
       labels={{back:t.tutBack,skip:t.tutSkip,next:t.tutNext,done:t.tutDone}}
       rtl={rtl}
     />
-  )}
-  {toastMsg&&(
-    <div style={{position:"fixed",top:"calc(14px + env(safe-area-inset-top))",left:"50%",zIndex:600,transform:"translateX(-50%)",background:"#1c1c1e",color:"#fff",border:"1px solid #2e7d46",borderRadius:13,padding:"11px 20px",fontSize:14.5,fontWeight:700,boxShadow:"0 12px 34px #000b",pointerEvents:"none",maxWidth:"90vw",textAlign:"center",animation:"toastIn .18s ease",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{toastMsg}</div>
   )}
 </div>
 );
