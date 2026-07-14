@@ -344,6 +344,10 @@ const [fCat,setFCat]=useState("all");
 const [fPay,setFPay]=useState("all");
 const [calPayFilter,setCalPayFilter]=useState("all");
 const [deleteConfirm,setDeleteConfirm]=useState(null);
+const [payModal,setPayModal]=useState(null);   // {catId,label} - רישום תשלום
+const [payAmt,setPayAmt]=useState("");
+const [payBusy,setPayBusy]=useState(false);
+const [payDone,setPayDone]=useState(null);
 useEffect(()=>{ _cats=categories; },[categories]);
 const C=id=>categories.find(c=>c.id===id)||{id:"?",label:"?",color:TH.textFaint,emoji:"📌"};
 async function addCategory(kind){ if(!nCat.label.trim()||!uid) return; const k=kind||(isBiz?"client":"personal"); const price=k==="client"?(Number(nCat.price)||0):0; const payload={user_id:uid,label:nCat.label.trim(),emoji:nCat.emoji,color:nCat.color,kind:k,session_price:price}; const {data,error}=await sb.from("categories").insert(payload).select().single(); if(error){ console.error(error); return; } setCategories(cs=>[...cs,{id:data.id,label:data.label,emoji:data.emoji,color:data.color,kind:data.kind||k,sessionPrice:Number(data.session_price||0),credit:0}]); setNCat({label:"",emoji:"⭐",color:PALETTE[0],price:""}); }
@@ -439,6 +443,18 @@ async function settleClientState(catId){
 }
 // קורא מהמסד את המצב המעודכן של לקוח (קרדיט) ושל הכרטיסיות והפגישות שלו,
 // אחרי שפונקציה במסד שינתה אותם. האפליקציה רק קוראת - לא מחשבת.
+async function recordPayment(){
+  const amt=Number(payAmt)||0;
+  if(!payModal||amt<=0)return;
+  setPayBusy(true);
+  const {data,error}=await sb.rpc("record_payment",{p_user_id:uid,p_category_id:payModal.catId,p_amount:amt});
+  setPayBusy(false);
+  if(error){ console.error(error); return; }
+  await refreshClient(payModal.catId);
+  const r=(data&&typeof data==="object")?data:{};
+  setPayDone({paid:Number(r.paid_events||0),sum:Number(r.paid_amount||0),credit:Number(r.credit_added||0)});
+  setPayAmt("");
+}
 async function refreshClient(catId){
   if(!catId) return;
   const [{data:cRow},{data:pRows},{data:eRows}]=await Promise.all([
@@ -782,6 +798,7 @@ return (<button key={v} id={v==="payments"||v==="clients"?"tut-nav-pay":v==="pun
                 <div style={{fontSize:13,color:TH.textDim,marginTop:2}}>{c.sessionPrice>0?`₪${c.sessionPrice} ${lang==="he"?"לפגישה":"/session"}`:lang==="he"?"ללא מחיר קבוע":"no set price"}</div>
               </div>
               <button onClick={()=>{setNCat({label:c.label,emoji:c.emoji,color:c.color,price:String(c.sessionPrice||"")});setCatEditId(selClient);setCatModal(true);}} style={{background:TH.border2,border:"none",color:TH.textDim,cursor:"pointer",borderRadius:11,padding:"8px 13px",fontSize:14,fontWeight:600,whiteSpace:"nowrap"}}>✏️ {lang==="he"?"עריכה":"Edit"}</button>
+              <button onClick={()=>{setPayAmt("");setPayDone(null);setPayModal({catId:selClient,label:c.label});}} style={{background:"#0a84ff",border:"none",color:"#fff",cursor:"pointer",borderRadius:11,padding:"8px 13px",fontSize:14,fontWeight:600,whiteSpace:"nowrap"}}>💰 {lang==="he"?"תשלום":"Payment"}</button>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:9,marginBottom:18}}>
               <SumCard label={t.paid} amount={Math.round(grandPaid)} color="#5ae09a" emoji="✅" sym="₪"/>
